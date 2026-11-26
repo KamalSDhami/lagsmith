@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: core events and window only. App commands are read-only and take no paths.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

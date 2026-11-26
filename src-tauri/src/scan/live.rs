@@ -1,0 +1,16 @@
+//! Runs every scanner against this machine and prints the results.
+//! `cargo test -j 3 live_scan -- --ignored --nocapture`
+
+#[test]
+#[ignore]
+fn live_scan() {
+    // Drivers first, so its WMI query runs before anything else has set up COM in this process.
+    let t = std::time::Instant::now();
+    println!("drivers: {:#?} ({:?})", super::drivers::check(), t.elapsed());
+    println!("hardware: {:#?}", super::hardware::read());
+    println!("storage: {:#?}", super::storage::read());
+    println!("stability: {:#?}", super::stability::read());
+    println!("startup: {:#?}", super::startup::read());
+    println!("memory: {:#?}", super::memory::read());
+    println!("security: {:#?}", super::security::read());
+}

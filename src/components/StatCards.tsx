@@ -1,0 +1,302 @@
+import type { ReactNode } from "react";
+import { Activity, HardDrive, MemoryStick, Monitor, Power, type LucideIcon } from "lucide-react";
+import type { Gpu } from "../types";
+import type { SystemData, Cmd } from "../lib/useSystemData";
+import { Card } from "./ui/card";
+import { Badge } from "./ui/badge";
+import { Progress } from "./ui/progress";
+import { Skeleton } from "./ui/skeleton";
+import { Popover } from "./ui/popover";
+import { cn } from "../lib/cn";
+import { driveName, formatGB, formatRam, plural, shortGpuName } from "../lib/format";
+import {
+  LOW_DISK_RATIO,
+  blueScreensLast7Days,
+  enabledStartup,
+  freeRatio,
+  hasDisplayDriverUpdate,
+  isSingleChannel,
+  needsRamUpgradeTip,
+  primaryGpu,
+  realGpus,
+  systemDrive,
+} from "../lib/derive";
+import { ICON_STROKE } from "../pages/nav";
+
+type Retry = (cmd: Cmd) => void;
+
+function CardHead({
+  icon: Icon,
+  title,
+  tile = "accent",
+  extra,
+}: {
+  icon: LucideIcon;
+  title: string;
+  tile?: "accent" | "danger";
+  extra?: ReactNode;
+}) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <span
+        className={cn(
+          "grid size-9 shrink-0 place-items-center rounded-xl",
+          tile === "danger" ? "bg-danger-soft text-danger" : "bg-tile text-tile-ink",
+        )}
+      >
+        <Icon size={18} strokeWidth={ICON_STROKE} aria-hidden />
+      </span>
+      <h3 className="truncate text-[15px] font-medium">{title}</h3>
+      {extra}
+    </div>
+  );
+}
+
+function Value({ children, title }: { children: ReactNode; title?: string }) {
+  return (
+    <div title={title} className="mt-3.5 truncate text-[22px] leading-tight font-semibold tracking-tight">
+      {children}
+    </div>
+  );
+}
+
+function Sub({ children }: { children: ReactNode }) {
+  return <div className="mt-1 truncate text-[14px] text-muted">{children}</div>;
+}
+
+function Loading() {
+  return (
+    <div aria-hidden>
+      <Skeleton className="mt-4 h-6 w-3/4" />
+      <Skeleton className="mt-2 h-4 w-1/2" />
+      <Skeleton className="mt-4 h-7 w-24 rounded-lg" />
+    </div>
+  );
+}
+
+export function InlineError({ what, onRetry }: { what: string; onRetry: () => void }) {
+  return (
+    <div className="mt-4 text-[14px]" role="alert">
+      <p className="text-muted">Couldn't read {what}</p>
+      <button onClick={onRetry} className="mt-1 font-medium text-accent underline-offset-2 hover:underline">
+        Try again
+      </button>
+    </div>
+  );
+}
+
+const shell = "h-full p-[18px] text-left";
+
+function StabilityCard({ d, retry }: { d: SystemData; retry: Retry }) {
+  const s = d.get_stability;
+  const n = s.status === "ok" ? blueScreensLast7Days(s.data) : 0;
+  return (
+    <Card className={shell}>
+      <CardHead icon={Activity} title="Stability" tile={s.status === "ok" && n > 0 ? "danger" : "accent"} />
+      {s.status === "loading" && <Loading />}
+      {s.status === "error" && <InlineError what="stability info" onRetry={() => retry("get_stability")} />}
+      {s.status === "ok" && (
+        <>
+          <Value>{plural(n, "blue screen", "blue screens")}</Value>
+          <Sub>in the last 7 days</Sub>
+          <div className="mt-3">
+            {n > 0 ? <Badge tone="danger">Needs Attention</Badge> : <Badge tone="success">Stable</Badge>}
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function StorageCard({ d, retry }: { d: SystemData; retry: Retry }) {
+  const s = d.get_storage;
+  const c = s.status === "ok" ? systemDrive(s.data.drives) : undefined;
+  const low = c ? freeRatio(c) < LOW_DISK_RATIO : false;
+  return (
+    <Card className={shell}>
+      <CardHead icon={HardDrive} title="Storage" />
+      {s.status === "loading" && <Loading />}
+      {s.status === "error" && <InlineError what="storage info" onRetry={() => retry("get_storage")} />}
+      {s.status === "ok" && !c && <Sub>No system drive found</Sub>}
+      {s.status === "ok" && c && (
+        <>
+          <Value>{formatGB(c.freeBytes)} free</Value>
+          <Sub>
+            of {formatGB(c.totalBytes)} ({driveName(c.letter)})
+          </Sub>
+          <div className="mt-[22px]">
+            <Progress value={1 - freeRatio(c)} tone={low ? "warning" : "accent"} label={`${driveName(c.letter)} used space`} />
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+function MemoryCard({ d, retry }: { d: SystemData; retry: Retry }) {
+  const h = d.get_hardware;
+  return (
+    <Card className={shell}>
+      <CardHead icon={MemoryStick} title="Memory" />
+      {h.status === "loading" && <Loading />}
+      {h.status === "error" && <InlineError what="hardware info" onRetry={() => retry("get_hardware")} />}
+      {h.status === "ok" && (
+        <>
+          <Value>{formatRam(h.data.ramBytes)}</Value>
+          <Sub>
+            {plural(h.data.ramSticks, "stick", "sticks")} · {isSingleChannel(h.data) ? "Single channel" : "Dual channel"}
+          </Sub>
+          {needsRamUpgradeTip(h.data) && (
+            <div className="mt-3">
+              <Badge tone="warning">Upgrade Tip</Badge>
+            </div>
+          )}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function DriverPill({ d }: { d: SystemData }) {
+  const u = d.check_driver_updates;
+  if (u.status === "loading") return <Badge tone="neutral">Checking…</Badge>;
+  if (u.status === "error") return <Badge tone="neutral">Not checked</Badge>;
+  return hasDisplayDriverUpdate(u.data) ? (
+    <Badge tone="warning">Update available</Badge>
+  ) : (
+    <Badge tone="success">Up to date</Badge>
+  );
+}
+
+function gpuRole(g: Gpu): string {
+  if (g.kind === "dedicated") return "Used by games";
+  if (g.kind === "integrated") return "Used for the display";
+  return "Software renderer";
+}
+
+function GpuList({ gpus }: { gpus: Gpu[] }) {
+  return (
+    <ul className="divide-y divide-line">
+      {gpus.map((g, i) => (
+        <li key={i} className="px-3 py-3">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-[14px] font-medium">{g.name}</div>
+            <span className="shrink-0 rounded-md bg-subtle px-2 py-0.5 text-[12px] font-medium">{gpuRole(g)}</span>
+          </div>
+          <div className="mt-1 text-[13px] text-muted">
+            {g.kind === "dedicated" && g.dedicatedBytes > 0 ? `${formatRam(g.dedicatedBytes)} dedicated` : "Shared memory"} ·
+            Driver {g.driverVersion}
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function GraphicsCard({ d, retry }: { d: SystemData; retry: Retry }) {
+  const h = d.get_hardware;
+  if (h.status !== "ok") {
+    return (
+      <Card className={shell}>
+        <CardHead icon={Monitor} title="Graphics" />
+        {h.status === "loading" ? <Loading /> : <InlineError what="hardware info" onRetry={() => retry("get_hardware")} />}
+      </Card>
+    );
+  }
+  const gpu = primaryGpu(h.data);
+  const gpus = realGpus(h.data);
+  const extra = gpus.length - 1;
+  const driverFailed = d.check_driver_updates.status === "error";
+  return (
+    <Popover
+      className="group h-full"
+      label="Graphics adapters"
+      panelClassName="left-0 right-auto w-[320px] min-[1240px]:left-auto min-[1240px]:right-0"
+      trigger={(p) => (
+        // Stretched trigger covering the whole card, so the card is clickable without
+        // nesting the "Try again" button inside another button.
+        <button
+          {...p}
+          aria-label={`Graphics: ${gpu?.name ?? "none"}. Show all graphics adapters`}
+          className="absolute inset-0 z-[1] rounded-[18px]"
+        />
+      )}
+      before={
+        <Card className={cn(shell, "transition-colors group-hover:border-[#d4d4dc]")}>
+          <CardHead
+            icon={Monitor}
+            title="Graphics"
+            extra={
+              extra > 0 && (
+                <span className="ml-auto rounded-md bg-subtle px-1.5 py-0.5 text-[12px] font-medium text-muted">
+                  +{extra}
+                </span>
+              )
+            }
+          />
+          {gpu ? (
+            <>
+              <Value title={gpu.name}>{shortGpuName(gpu.name)}</Value>
+              <Sub>Driver {gpu.driverVersion}</Sub>
+              <div className="mt-3">
+                <DriverPill d={d} />
+              </div>
+              {driverFailed ? (
+                <div className="mt-1.5 flex items-baseline gap-2 text-[12px] leading-snug">
+                  <span className="text-muted">Check failed</span>
+                  <button
+                    onClick={() => retry("check_driver_updates")}
+                    className="relative z-[2] font-medium text-accent underline-offset-2 hover:underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              ) : (
+                d.check_driver_updates.status === "ok" && (
+                  <div className="mt-1.5 text-[12px] leading-snug text-muted">Checked on Windows Update</div>
+                )
+              )}
+            </>
+          ) : (
+            <Sub>No graphics adapter found</Sub>
+          )}
+        </Card>
+      }
+    >
+      <div className="px-3 pt-2 pb-1 text-[13px] font-medium text-muted">Graphics adapters</div>
+      <GpuList gpus={gpus.length ? gpus : h.data.gpus} />
+    </Popover>
+  );
+}
+
+function StartupCard({ d, retry }: { d: SystemData; retry: Retry }) {
+  const s = d.get_startup;
+  return (
+    <Card className={shell}>
+      <CardHead icon={Power} title="Startup" />
+      {s.status === "loading" && <Loading />}
+      {s.status === "error" && <InlineError what="startup apps" onRetry={() => retry("get_startup")} />}
+      {s.status === "ok" && (
+        <>
+          <Value>{plural(enabledStartup(s.data), "app", "apps")}</Value>
+          <Sub>Start with Windows</Sub>
+          <div className="mt-3">
+            <Badge tone="neutral">Review</Badge>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
+export function StatCards({ data, retry }: { data: SystemData; retry: Retry }) {
+  return (
+    <section aria-label="System summary" className="mt-5 grid grid-cols-3 gap-4 min-[1240px]:grid-cols-5">
+      <StabilityCard d={data} retry={retry} />
+      <StorageCard d={data} retry={retry} />
+      <MemoryCard d={data} retry={retry} />
+      <GraphicsCard d={data} retry={retry} />
+      <StartupCard d={data} retry={retry} />
+    </section>
+  );
+}
