@@ -21,7 +21,7 @@ Pending and in-progress work. Update the status when something moves.
 |---|---|---|---|---|
 | APP-1 | Scaffold Tauri 2, React, TypeScript; strict CSP; no opener plugin | P0 | done | `D:\Git\projects\system-ready` |
 | APP-2 | IPC contract (`model.rs` and `types.ts`) | P0 | done | 7 read-only commands, no arguments |
-| APP-3 | Rust scan modules: hardware, storage, stability, startup, memory, security, drivers | P0 | doing | Backend subagent |
+| APP-3 | Rust scan modules: hardware, storage, stability, startup, memory, security, drivers | P0 | done | 12 unit tests pass; live run returned real data |
 | APP-4 | Dashboard UI matching the approved light design | P0 | done | Built and tested in a browser with mock data only |
 | APP-5 | Memory page (read-only, honest note about RAM cleaning) | P0 | done | |
 | APP-6 | Make the dashboard fit 1366x768 without scrolling | P0 | todo | Currently about 987px tall |
@@ -30,7 +30,10 @@ Pending and in-progress work. Update the status when something moves.
 | APP-9 | Fix review and audit findings | P0 | todo | |
 | APP-10 | Run in Tauri (`npm run tauri dev`) and check against real data | P0 | todo | |
 | APP-11 | Release build and NSIS installer | P1 | todo | First run about 20-35 min |
-| APP-12 | Rename the project to its final name | P1 | todo | Proposed name "Lagsmith"; needs your decision |
+| APP-12 | Rename the project to Lagsmith | P1 | done | GitHub repo KamalSDhami/lagsmith (MIT). The local folder is still `system-ready`. |
+
+| APP-13 | Show storage in GiB the way Windows does (C: shows as 158.6 GB, not 170.3) | P0 | todo | Backend returns bytes; check the frontend formatter |
+| APP-14 | Memory Integrity now reads as off: confirm you turned it off | P1 | todo | The registry says Enabled=0 since a recent boot |
 
 ## App: v1 features
 

@@ -11,7 +11,7 @@
 | Product definition (`PRODUCT.md`) | 100% | |
 | Design: light dashboard | 100% | |
 | Design: remaining screens | 10% | 1-2 sessions |
-| **First build (v0.1, read-only)** | **60%** | **about 1-2 hours** |
+| **First build (v0.1, read-only)** | **70%** | **about 1 hour** |
 | v1 (actions with undo) | 0% | about 3-5 sessions after v0.1 |
 | v2 | 0% | |
 
@@ -21,12 +21,12 @@
 |---|---|---|---|
 | Scaffold, CSP, IPC contract | 10% | 100% | |
 | Frontend: dashboard, Memory page, placeholder pages | 25% | 90% | Must fit 1366x768 (APP-6) |
-| Backend: 7 read-only scan modules | 30% | 70% | Subagent running; dependencies already compiled (4.1 GB on C:) |
+| Backend: 7 read-only scan modules | 30% | 100% | 12 tests pass; live data confirmed |
 | Code review (`/ponytail`) and security audit | 15% | 0% | |
 | Fixes from review | 10% | 0% | |
 | Run in Tauri against real data | 5% | 0% | |
 | Release installer | 5% | 0% | First release compile is about 20-35 min |
-| **Total** | 100% | **about 60%** | |
+| **Total** | 100% | **about 70%** | |
 
 ## Build times on this laptop (i7-8650U, 8 GB, 3 parallel jobs)
 
@@ -37,8 +37,9 @@
 
 ## Locations
 
-- **Project:** `D:\Git\projects\system-ready`
-- **Rust build output:** `C:\Users\KamalSDhami\AppData\Local\system-ready-target` (kept off D:)
+- **Project:** `D:\Git\projects\system-ready` (app renamed to Lagsmith)
+- **Repository:** https://github.com/KamalSDhami/lagsmith (public, MIT)
+- **Rust build output:** `C:\Users\KamalSDhami\AppData\Local\lagsmith-target` (kept off D:)
 - **Design:** https://doop.design/c/KQV3ZmmkNI
 - **Docs:** `docs/PRODUCT.md`, `docs/CASE-STUDY.md`, `docs/TICKETS.md`, `docs/references/`
 
@@ -51,6 +52,7 @@
 | 26 Nov | No automatic RAM cleaning; an honest memory panel instead |
 | 26 Nov | The first build is read-only; any action needs review and undo |
 | 26 Nov | "Up to date" for drivers must cite Windows Update as its source |
+| 26 Nov | Name: Lagsmith (System Ready clashed with ReadyPC). Licence: MIT. Third-party inspiration images are kept out of the repo. |
 
 ## Log
 
@@ -61,4 +63,5 @@
   - Dual-GPU frames.
   - Project scaffolded.
   - Frontend built.
-  - Backend in progress.
+  - Backend finished.
+  - Renamed to Lagsmith and pushed to GitHub.
