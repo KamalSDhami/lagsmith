@@ -1,58 +1,63 @@
 # CONTEXT (handoff file, max 700 words; keep it under the limit, replace stale lines rather than appending)
 
-**Updated:** 26 Nov 2026
+**Updated:** 26 Nov 2026 (evening)
 
 ## What this is
-Lagsmith: an open-source (MIT) Windows app that diagnoses why a PC is laggy or crashing, shows the evidence, and later applies only the fixes the user ticks, with undo. It grew from fixing the owner's ThinkPad T480 for VALORANT on 25 Nov 2026 (`docs/CASE-STUDY.md`).
+Lagsmith: an open-source (MIT) Windows app that diagnoses why a PC is laggy or crashing, shows the evidence, and applies only the fixes the user ticks, with undo. It grew from fixing the owner's ThinkPad T480 for VALORANT on 25 Nov 2026 (`docs/CASE-STUDY.md`). **The owner's definition of done is `docs/DEFINITION-OF-DONE.md`**: the app runs every 25 Nov diagnosis by itself.
 
 ## Where things are
-- **Code:** `D:\Git\projects\system-ready` (folder not yet renamed). **Repo:** github.com/KamalSDhami/lagsmith (public). Commits use the noreply email.
-- **Rust build output:** `%LOCALAPPDATA%\lagsmith-target`, set in the gitignored `src-tauri/.cargo/config.toml`. D: is nearly full and holds VALORANT; keep builds off D:.
-- **Rust is not on PATH.** Prefix commands with `$env:Path="$env:USERPROFILE\.cargo\bin;$env:Path"`. Use `-j 3` (8 GB RAM) and only one cargo process at a time.
-- **Run the app:** `npm run tauri dev`. **UI only, with sample data:** `npm run dev`.
-- **Design:** Doop canvas KQV3ZmmkNI (light dashboard approved; dark palette undecided). References are in `docs/references/`.
-- **Docs to keep current:** `PROGRESS.md` (percentages and estimates), `TICKETS.md` (pending work), `PRODUCT.md` (product truth), `ANTI-CHEAT.md` (hard rules), this file.
+- **Code:** `D:\Git\projects\system-ready`. **Repo:** github.com/KamalSDhami/lagsmith (public). Commits use the noreply email.
+- **Rust build output:** `%LOCALAPPDATA%\lagsmith-target`, set in the gitignored `src-tauri/.cargo/config.toml`. D: is nearly full; keep builds off it.
+- **Rust is not on PATH.** Prefix commands with `$env:Path="$env:USERPROFILE\.cargo\bin;$env:Path"`. Use `-j 3` and one cargo process at a time.
+- **Run the app:** `npm run tauri dev`.
+- **Tests:**
+  - `npx playwright test --project=mock`: 34 tests, with fixtures via `?fixture=`.
+  - `scripts/test-real.ps1`: 9 tests on the real app, using a test-only debugging port.
+  - `cargo test -j 3`, plus the live tests run with `-- --ignored`.
+- **Design:** the owner's 9-screen design is `docs/references/EXACT-all-screens.webp`. The name is Lagsmith, not "System Ready".
+- **Owner contact:** a Discord webhook (one-way) that the owner gave in chat. It's never stored in files. Post updates; replies can't be read.
 
-## Stack and architecture
-- Tauri 2, React 19, TypeScript, Tailwind 4, Inter, lucide icons. Hand-written shadcn-style components (the owner asked for the 21st.dev style).
-- **IPC contract:** `src-tauri/src/model.rs` mirrored by `src/types.ts`. Commands take no arguments and are read-only: `get_hardware`, `get_storage`, `get_caches`, `get_stability`, `get_startup`, `get_memory`, `get_security`, `check_driver_updates`.
-- **Rust:** `src-tauri/src/scan/*`. Uses windows 0.62.2, wmi 0.18.4 and winreg. No shell spawning.
-- **Security:**
-  - Strict CSP; capabilities grant only the app's own commands.
-  - **Future admin actions:** go through a separate elevated helper that accepts allow-listed action IDs only. 10 design rules came from the security audit.
-  - **The folder walker must not be reused for deletion:** it needs handle-based walking first.
+## Architecture
+- Tauri 2, React 19, TypeScript, Tailwind 4, Inter and lucide icons, with hand-written shadcn-style components.
+- **Contract:** `src-tauri/src/model.rs` mirrored by `src/types.ts`.
+  - Read commands take no arguments.
+  - Actions use `apply_changes(title, changes)`, `undo_change(id)` and `get_history`; each is validated in Rust.
+- **Code layout:** `src-tauri/src/scan/*` (diagnostics) and `src-tauri/src/actions/*` (startup, Game Mode, Game Bar, power overlay, cache cleaning). History is JSON in local app data.
+- **Security:** strict CSP; capabilities grant only the app's own commands; no shell spawning.
+- **Admin helper (next):** a separate small binary, one allow-listed action ID per UAC launch, no paths from the caller; installed per machine.
 
-## Hard rules (owner's requirements)
-- **Anti-cheat safety:**
-  - Never open a handle to a game or anti-cheat process (`scan/protected.rs`).
-  - No drivers, no memory access, never disable anti-cheat services, no changes while a game runs.
-- **No timed RAM cleaning** (Mem Reduct-style). Write any memory code from Windows APIs only; don't copy Mem Reduct (GPLv3).
-- **Every number shows its source.** Nothing changes without review and undo. User data (models, Downloads) is never ticked by default.
+## Hard rules
+- **Anti-cheat (`docs/ANTI-CHEAT.md`):**
+  - Never open game or anti-cheat processes (`protected.rs`).
+  - No drivers.
+  - Never disable anti-cheat.
+  - Changes are refused during a game session (`is_game_session`: the game or `vgc`, not the tray icon).
+- **No timed RAM cleaning.**
+- **Every number has a source.** Review before any change, then undo; user files are never auto-selected.
 - **UI:**
-  - Clean, professional SaaS look.
-  - Apple-style colour restraint: neutral greys; the accent only on the primary button, active nav and selection; status colours only for real status.
-  - No brutalism, neumorphism, gradients, emoji or em dashes.
-  - Must fit 1366x768.
-- **When the owner supplies a design, match it exactly.**
+  - A clean SaaS look with Apple-style colour restraint.
+  - No brutalism, gradients, emoji or em dashes.
+  - Fits 1366x768.
+  - When the owner supplies a design, match it exactly.
 
 ## Status
-- **v0.1 (read-only dashboard):** about 85%.
-- **Three reviews done** (`/ponytail-review`, `/security-audit`, `/condom`); fixes are being applied. The condom report is `CONDOM-REPORT.md` (uncommitted).
-- **Next:**
-  1. Launch and verify on real data.
-  2. Commit each fix and push.
-  3. v0.2: Crash Detective with dump suspects, a "what fills C:" view, page file, power plan, anti-cheat service status (read-only), WSL and Hyper-V. About 2-3 sessions.
-- **After that:** v1 actions with undo (about 3-4 sessions), then v2 (moving data, SFC/DISM, Store-app removal).
+- Definition of done: **18 of 20 diagnoses done**, all screens built, actions C1, C2, C3 and C5 done.
+- **Remaining:**
+  - A8: naming drivers in crash dumps (admin helper plus dbgeng).
+  - C6, C7: SFC, DISM and a restore point (admin helper).
+  - C4: GPU per game.
+  - A18: the last SFC result from compressed CBS logs.
+- The app found two new problems on the owner's PC: power mode set to Best power efficiency while plugged in, and the battery at 25% health.
 
 ## Waiting on the owner
-1. Source and licence of the laptop image (`src/assets/laptop.webp`).
-2. A real app icon (it's still Tauri's default).
-3. Whether to rewrite git history to remove the Gmail address and machine details from the first 2 commits.
-4. A trademark check for "Lagsmith" (IP India, USPTO).
-5. On the PC: confirm VALORANT works again after the Vanguard reinstall, and whether Memory Integrity was turned off on purpose.
+1. The laptop image's source and licence.
+2. A real app icon.
+3. Whether to rewrite git history to remove the Gmail address and machine details.
+4. A trademark check for "Lagsmith".
 
 ## Mistakes not to repeat
-- PowerShell `@(@(a,b))` flattens: use objects for find-and-replace, and check the result before writing.
-- Never clear a whole folder (`%TEMP%`).
+- PowerShell `@(@(a,b))` flattens: write files whole, or check replacements before saving.
+- Never clear a whole folder.
 - Check `DisplayVersion` before calling a build "Insider".
-- Windows Update offers fake "upgrades": compare versions before treating one as real.
+- Windows Update offers fake "upgrades": compare versions.
+- Never toggle the owner's real startup entries in tests.

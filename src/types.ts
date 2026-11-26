@@ -17,6 +17,9 @@ export interface Hardware {
   device: string;
   os: string;
   cpu: string;
+  cpuCores: number;
+  cpuThreads: number;
+  biosVersion: string;
   ramBytes: number;
   ramSticks: number;
   ramSlots: number;
@@ -30,9 +33,48 @@ export interface Storage { drives: Drive[] }
 
 export interface DayEvents { date: string; blueScreens: number; unexpectedShutdowns: number }
 export interface Crash { time: string; code: string; meaning: string; dumpFile: string | null }
-export interface Stability { days: DayEvents[]; crashes: Crash[]; driverResets: number }
+export interface AppCrash { time: string; app: string; module: string; hang: boolean }
+export interface Stability { days: DayEvents[]; crashes: Crash[]; driverResets: number; appCrashes: AppCrash[] }
 
-export interface StartupApp { name: string; command: string; source: string; enabled: boolean }
+export interface PageFile { autoManaged: boolean; allocatedBytes: number; usedBytes: number; peakBytes: number }
+export interface Power {
+  plan: string;
+  mode: "best_performance" | "balanced" | "best_efficiency" | "unknown";
+  onBattery: boolean;
+  batteryPercent: number | null;
+  batteryDesignWh: number | null;
+  batteryFullWh: number | null;
+}
+export interface SfcResult { time: string; outcome: "no_problems" | "repaired" | "could_not_repair" | "unknown" }
+export interface SystemState {
+  pageFile: PageFile | null;
+  power: Power;
+  hyperVRunning: boolean;
+  wslDistros: string[];
+  gameMode: boolean | null;
+  gameBarCapture: boolean | null;
+  lastSfc: SfcResult | null;
+  secureBoot: boolean | null;
+  tpmVersion: string | null;
+}
+export interface AntiCheat { name: string; installed: boolean; service: string; state: "running" | "stopped" | "missing"; startType: string }
+export interface CrashDump { file: string; time: string; bytes: number }
+export interface SizedItem { name: string; displayPath: string; bytes: number }
+export interface DiskUsage { programs: SizedItem[]; wslDisks: SizedItem[]; appData: SizedItem[]; userFolders: SizedItem[] }
+export interface StoreApp { id: string; name: string; publisher: string }
+
+export interface StartupApp { name: string; command: string; source: string; enabled: boolean; id: string; canToggle: boolean }
+
+// Phase 2: actions. All go through apply_changes (validated in Rust, refused while a protected game runs).
+export type ChangeRequest =
+  | { kind: "startupEnabled"; id: string; enabled: boolean }
+  | { kind: "gameMode"; on: boolean }
+  | { kind: "gameBarCapture"; on: boolean }
+  | { kind: "powerMode"; mode: "best_performance" | "balanced" | "best_efficiency" }
+  | { kind: "cleanCaches"; ids: string[] };
+
+export interface ChangeItem { description: string; status: "done" | "skipped" | "failed"; detail: string; undo: unknown | null; freedBytes: number }
+export interface ChangeSet { id: string; time: string; title: string; items: ChangeItem[]; undone: boolean }
 
 export interface AppMemory { name: string; processes: number; bytes: number }
 export interface Memory {
@@ -57,4 +99,16 @@ export type Commands = {
   get_memory: Memory;
   get_security: Security;
   check_driver_updates: DriverUpdates;
+  get_system: SystemState;
+  get_anticheat: AntiCheat[];
+  list_crash_dumps: CrashDump[];
+  get_disk_usage: DiskUsage;
+  get_store_apps: StoreApp[];
+  get_history: ChangeSet[];
+};
+
+// Commands that take arguments (all validated in Rust).
+export type ActionCommands = {
+  apply_changes: { args: { title: string; changes: ChangeRequest[] }; result: ChangeSet };
+  undo_change: { args: { id: string }; result: ChangeSet };
 };

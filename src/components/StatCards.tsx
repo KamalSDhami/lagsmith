@@ -160,7 +160,7 @@ function MemoryCard({ d, retry }: { d: SystemData; retry: Retry }) {
 
 function DriverPill({ d }: { d: SystemData }) {
   const u = d.check_driver_updates;
-  if (u.status === "loading") return <Badge tone="neutral">Checking…</Badge>;
+  if (u.status !== "ok" && u.status !== "error") return <Badge tone="neutral">Checking…</Badge>;
   if (u.status === "error") return <Badge tone="neutral">Not checked</Badge>;
   return hasDisplayDriverUpdate(u.data) ? (
     <Badge tone="warning">Update available</Badge>

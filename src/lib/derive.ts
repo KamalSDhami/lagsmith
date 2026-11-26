@@ -1,4 +1,5 @@
-import type { Commands, Drive, Gpu, Hardware, Stability, StartupApp } from "../types";
+import type { AntiCheat, Commands, Crash, Drive, Gpu, Hardware, Power, Stability, StartupApp, SystemState } from "../types";
+import { hasRiotGame, valorantRequirements, VALORANT_NOTE } from "./requirements";
 import type { Page } from "../pages/nav";
 import { formatGB, formatRam, isoDay, plural } from "./format";
 
@@ -77,6 +78,8 @@ export interface Finding {
 }
 
 type Partial7 = {
+  system?: SystemState;
+  anticheat?: AntiCheat[];
   hardware?: Hardware;
   storage?: Commands["get_storage"];
   stability?: Stability;
@@ -105,6 +108,21 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
     }
   }
 
+  if (d.system && d.anticheat && hasRiotGame(d.anticheat)) {
+    const r = valorantRequirements(d.system);
+    if (r.failing) {
+      out.push({
+        id: "valorant-req",
+        severity: "warning",
+        title: "VALORANT requirements not met",
+        body: VALORANT_NOTE,
+        evidence: `Secure Boot ${r.secureBoot.label} · TPM ${r.tpm.label}`,
+        source: "System check",
+        action: { label: "View gaming", page: "gaming" },
+      });
+    }
+  }
+
   if (d.storage) {
     const c = systemDrive(d.storage.drives);
     if (c && freeRatio(c) < LOW_DISK_RATIO) {
@@ -118,6 +136,18 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
         action: { label: "View storage", page: "storage" },
       });
     }
+  }
+
+  if (d.system && powerHoldsBack(d.system.power)) {
+    out.push({
+      id: "power-efficiency",
+      severity: "warning",
+      title: "Power mode is set to Best power efficiency",
+      body: "Windows is limiting performance even though you're plugged in. Switch to Best performance before gaming.",
+      evidence: "",
+      source: "Windows power settings",
+      action: { label: "Fix in Gaming Mode", page: "gaming" },
+    });
   }
 
   if (d.hardware && needsRamUpgradeTip(d.hardware)) {
@@ -148,6 +178,20 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
     }
   }
 
+  const health = d.system ? batteryHealth(d.system.power) : null;
+  if (health !== null && health < WORN_BATTERY && d.system) {
+    const p = d.system.power;
+    out.push({
+      id: "battery-worn",
+      severity: "info",
+      title: `Battery holds ${Math.round(health * 100)}% of its original charge`,
+      body: "A worn battery can make Windows lower performance and shorten unplugged play. Consider replacing it.",
+      evidence: `${p.batteryFullWh} Wh of ${p.batteryDesignWh} Wh design`,
+      source: "Battery report",
+      action: { label: "View hardware", page: "hardware" },
+    });
+  }
+
   if (d.security?.memoryIntegrity) {
     out.push({
       id: "hvci",
@@ -161,4 +205,36 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
 
   // Pushed in the agreed order (crashes, disk, RAM, startup, Memory Integrity).
   return out;
+}
+
+/** Local calendar day (YYYY-MM-DD) of an RFC 3339 instant. */
+export function localDay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso.slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+/** Our own label: video timeouts (0x116, 0x117) are Medium, every other blue screen is High. */
+export function crashSeverity(c: Crash): "High" | "Medium" {
+  const n = parseInt(c.code, 16);
+  return n === 0x116 || n === 0x117 ? "Medium" : "High";
+}
+
+/** "0x000000CE" -> "0xCE". */
+export function shortCode(code: string): string {
+  const n = parseInt(code, 16);
+  return Number.isNaN(n) ? code : `0x${n.toString(16).toUpperCase()}`;
+}
+
+/** Best power efficiency while plugged in throttles the CPU and GPU for no reason. */
+export function powerHoldsBack(p: Power): boolean {
+  return p.mode === "best_efficiency" && !p.onBattery;
+}
+
+export const WORN_BATTERY = 0.5;
+
+/** Full-charge capacity as a share of design capacity, or null when either is unknown. */
+export function batteryHealth(p: Power): number | null {
+  if (p.batteryFullWh === null || p.batteryDesignWh === null || p.batteryDesignWh <= 0) return null;
+  return p.batteryFullWh / p.batteryDesignWh;
 }

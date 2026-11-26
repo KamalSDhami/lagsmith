@@ -44,3 +44,27 @@ export function shortGpuName(name: string): string {
     .trim();
 }
 
+
+/** Small sizes in MB, larger in GB. */
+export function formatSize(bytes: number): string {
+  return bytes >= 1024 ** 3 ? formatGB(bytes) : `${(bytes / 1024 ** 2).toFixed(1)} MB`;
+}
+
+/** "26 Nov, 21:27" in the user's locale. */
+export function formatTime(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+export function formatDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
+
+/** Seconds as mm:ss. */
+export function formatElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}

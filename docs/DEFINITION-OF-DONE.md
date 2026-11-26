@@ -2,55 +2,57 @@
 
 **Owner's definition (26 Nov 2026):** Lagsmith can run, by itself, every diagnosis we did by hand on 25 Nov to make the game stable (see `CASE-STUDY.md`), and its results agree with what we found. Every feature the owner asked for exists and works.
 
-A row is ticked only when an automated test proves it: `e2e/real` checks the real app on this PC, `e2e/mock` checks edge cases with sample data, and `cargo test` covers parsing.
+A row is ticked only when an automated test proves it: `e2e/real` checks the real app on this PC (9 tests), `e2e/mock` checks edge cases with sample data (34 tests), and `cargo test` covers parsing and the actions (31 unit tests plus live tests).
 
 ## A. Diagnoses from 25 Nov
 
-| # | Diagnosis | How we did it by hand | App feature | Status |
+| # | Diagnosis | App feature | Proven by | Status |
 |---|---|---|---|---|
-| A1 | Device, CPU, BIOS, Windows version and channel | WMI, registry | Hardware page | partial (BIOS missing) |
-| A2 | GPU, driver version, driver resets (event 4101) | WMI, Event Log | Dashboard, Hardware | done |
-| A3 | RAM total, sticks and slots, speed, single or dual channel | WMI | Hardware | done |
-| A4 | Free space per drive | Disk query | Dashboard, Storage | done |
-| A5 | Blue screens with code and meaning (1001, and 41 with a bugcheck) | System log | Crash Detective | done |
-| A6 | Unexpected shutdowns (41, 6008) | System log | Crash Detective | done |
-| A7 | App crashes and hangs (Application log 1000, 1002), e.g. `vgm.exe` before the 0x50 | Application log | Crash Detective | todo |
-| A8 | Drivers named in crash dumps (`vgk.sys`) | Read minidumps as admin | Crash Detective, with the admin helper | todo |
-| A9 | Anti-cheat installed and service state (`vgc`, `vgk`) | `Get-Service`, Uninstall keys | Crash Detective, Gaming | todo |
-| A10 | Free RAM and top memory users | Process list | Memory | done |
-| A11 | Page file setting and usage | WMI | Hardware, Memory | todo |
-| A12 | Power plan and mode, battery | `powercfg` | Hardware, Gaming | todo |
-| A13 | Memory Integrity, Hyper-V and WSL running | Device Guard, services | Gaming (explained, never changed) | partial |
-| A14 | Startup apps and enabled state | Registry | Startup Manager | done (data), todo (page) |
-| A15 | What fills C:: caches, installed programs, WSL disk, Store app data, user folders | Folder sizes | Storage Cleaner | partial (caches) |
-| A16 | Real driver updates from Windows Update | WUA COM | Dashboard | done |
-| A17 | Leftover Store apps that can be removed | `Get-AppxPackage` | Debloat | todo |
-| A18 | System file health: last SFC or DISM result | SFC, DISM, CBS log | System Repair | todo |
-| A19 | Game Mode, Game Bar capture state | Registry | Gaming Mode | todo |
-| A20 | Secure Boot and TPM 2.0 (VALORANT on Windows 11 refuses to launch without them: VAN9001/VAN9003) | Added from research, 26 Nov | Gaming Mode, Dashboard finding | todo |
+| A1 | Device, CPU cores and threads, BIOS, Windows version | Hardware | real: N24ET81W, 4 cores, 8 threads | done |
+| A2 | GPU, driver version, driver resets (4101) | Dashboard, Hardware | real: UHD 620, 31.0.101.2145 | done |
+| A3 | RAM, sticks and slots, speed, channel | Hardware | real: 1 stick, single channel | done |
+| A4 | Free space per drive | Dashboard, Storage | real | done |
+| A5 | Blue screens with code and meaning | Crash Detective | real: 0xCE, 0x50; mock: blue screen without a dump | done |
+| A6 | Unexpected shutdowns | Crash Detective | real, cargo test | done |
+| A7 | App crashes and hangs (`vgm.exe`) | Crash Detective | real: vgm.exe | done |
+| A8 | Drivers named in crash dumps (`vgk.sys`) | Crash Detective | dump list only (real); naming needs the admin helper | **todo** |
+| A9 | Anti-cheat installed, service state | Crash Detective, Gaming | real: Riot Vanguard | done |
+| A10 | Free RAM, top memory apps (anti-cheat never opened) | Memory | real: no vgc/VALORANT rows | done |
+| A11 | Page file | Hardware | real | done |
+| A12 | Power plan and mode, battery health | Hardware, Gaming, Dashboard | live: best_efficiency on AC, battery 25%; mock | done |
+| A13 | Memory Integrity, Hyper-V, WSL | Gaming | real | done |
+| A14 | Startup apps, anti-cheat entries locked | Startup Manager | real: RiotClient has no toggle | done |
+| A15 | What fills C: (programs, WSL disk, app data, user folders, caches) | Storage Cleaner | real: VALORANT 35.2 GB, Ubuntu vhdx | done |
+| A16 | Real driver updates only | Dashboard | live: 2 real upgrades, fake ones dropped | done |
+| A17 | Leftover Store apps | Debloat | live: none installed on this PC; mock list | done |
+| A18 | Last SFC result | System Repair | real page; result is None once Windows compresses the CBS log | partial |
+| A19 | Game Mode, Game Bar capture | Gaming | real | done |
+| A20 | Secure Boot, TPM 2.0 (VAN9001/9003) | Gaming, Dashboard | real: Secure Boot on, TPM 2.0; mock: failing fixture | done |
 
-## B. Screens (owner's 9-screen design, `references/EXACT-all-screens.webp`)
+**18 done, 1 partial, 1 todo.**
 
-Dashboard · Scan PC (progress) · Crash Detective · Hardware · Storage Cleaner · Startup Manager · Gaming Mode · System Repair · History & Undo. Also Memory and Debloat, which are in the nav. Every number comes from real data. The name stays Lagsmith.
+## B. Screens (owner's 9-screen design)
 
-## C. Actions (after A is done; each one reversible and logged in History & Undo)
+Dashboard, Scan PC, Crash Detective, Hardware, Storage Cleaner, Startup Manager, Gaming Mode, System Repair, History & Undo, plus Memory and Debloat: **all built**. Each has a mock test that checks it fits 1366x700, and a real test against live data. Places where the design showed numbers we have no source for were changed; see the frontend report in `PROGRESS.md`.
 
-| # | Action | Needs admin | Status |
+## C. Actions (reversible, logged in History & Undo)
+
+| # | Action | Proven by | Status |
 |---|---|---|---|
-| C1 | Startup toggle (StartupApproved, HKCU entries) | no | todo |
-| C2 | Game Mode on, Game Bar capture off | no | todo |
-| C3 | Power mode (best performance) | no | todo |
-| C4 | GPU preference per game | no | todo |
-| C5 | Clear user caches (needs the handle-based walker first) | no | todo |
-| C6 | Run SFC and DISM with live progress | yes (helper) | todo |
-| C7 | Create a restore point | yes (helper) | todo |
-| C8 | Move WSL to another drive | no (`wsl --manage`) | later |
-| C9 | Remove a leftover Store app | no (per user) | later |
+| C1 | Startup toggle (HKCU) | live test on its own test entry; mock UI flow | done |
+| C2 | Game Mode, Game Bar capture | live apply and undo, restored exactly; mock | done |
+| C3 | Power mode | live apply and undo; mock | done |
+| C4 | GPU preference per game | not built (this PC has one GPU); designs exist | todo |
+| C5 | Clean user caches (handle-based, never follows links) | unit tests on temp folders; mock UI flow. Not yet run on real caches. | done (unit) |
+| C6 | Run SFC and DISM with live progress | needs the admin helper | **todo** |
+| C7 | Restore point before changes | needs the admin helper | **todo** |
+| C8 | Move WSL to another drive | later | todo |
+| C9 | Remove a leftover Store app | later | todo |
 
-**Never** (`ANTI-CHEAT.md`): touch game or anti-cheat processes, services, startup entries or folders; toggle Memory Integrity.
+All actions are refused during a protected game session (the game itself or `vgc`). The Vanguard tray icon doesn't block them.
 
 ## D. Quality gates
 
-- `cargo test`, `npm run build`, and all Playwright specs pass (mock and real).
-- The dashboard fits 1366x768.
-- No reviewer finding left open without a ticket.
+- `cargo test`, `npm run build`, mock and real Playwright: **passing** (26 Nov).
+- The dashboard fits 1366x768: **passing**.
+- Reviewer findings: fixed, or ticketed in `TICKETS.md`.
