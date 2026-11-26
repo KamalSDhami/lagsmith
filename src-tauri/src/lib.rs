@@ -1,4 +1,5 @@
 mod actions;
+mod admin;
 mod model;
 mod scan;
 
@@ -44,6 +45,11 @@ async fn apply_changes(title: String, changes: Vec<ChangeRequest>) -> Result<Cha
     tauri::async_runtime::spawn_blocking(move || actions::apply_changes(title, changes)).await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn run_admin_task(task: String, on_event: tauri::ipc::Channel<model::AdminEvent>) -> Result<model::AdminResult, String> {
+    tauri::async_runtime::spawn_blocking(move || admin::run_admin_task(&task, |e| { let _ = on_event.send(e); }))
+        .await.map_err(|e| e.to_string())?
+}
+#[tauri::command]
 async fn undo_change(id: String) -> Result<ChangeSet, String> {
     tauri::async_runtime::spawn_blocking(move || actions::undo_change(id)).await.map_err(|e| e.to_string())?
 }
@@ -63,7 +69,7 @@ pub fn run() {
             get_hardware, get_storage, get_caches, get_stability, get_startup,
             get_memory, get_security, check_driver_updates,
             get_system, get_anticheat, list_crash_dumps, get_disk_usage, get_store_apps,
-            get_history, apply_changes, undo_change
+            get_history, apply_changes, undo_change, run_admin_task
         ])
         .run(tauri::generate_context!())
         .expect("error while running Lagsmith");

@@ -18,6 +18,7 @@ fn main() {
         "get_history",
         "apply_changes",
         "undo_change",
+        "run_admin_task",
     ])))
     .expect("failed to run tauri-build");
 }

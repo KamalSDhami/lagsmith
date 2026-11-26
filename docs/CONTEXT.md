@@ -1,6 +1,6 @@
 # CONTEXT (handoff file, max 700 words; any AI or human can resume from here. Replace stale lines, don't append)
 
-**Updated:** 26 Nov 2026 (night). Last commit `17c0432`.
+**Updated:** 26 Nov 2026 (night). Steps 1-2 below DONE (admin module compiles, run_admin_task registered, 38 cargo tests pass). Next: step 3.
 
 ## What this is
 Lagsmith: an open-source (MIT) Windows app (Tauri 2 + React) that diagnoses why a PC lags or crashes, shows the evidence, and applies only the fixes the user ticks, with undo. Born from fixing the owner's ThinkPad T480 for VALORANT on 25 Nov 2026 (`docs/CASE-STUDY.md`). **Done means `docs/DEFINITION-OF-DONE.md`**: the app runs every 25 Nov diagnosis by itself.

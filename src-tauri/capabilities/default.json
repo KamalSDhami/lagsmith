@@ -19,6 +19,7 @@
     "allow-get-store-apps",
     "allow-get-history",
     "allow-apply-changes",
-    "allow-undo-change"
+    "allow-undo-change",
+    "allow-run-admin-task"
   ]
 }

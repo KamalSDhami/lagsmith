@@ -23,9 +23,9 @@ pub fn valid_action(a: &str) -> bool {
     ACTIONS.contains(&a)
 }
 
-/// Exactly `\.\pipe\lagsmith-` followed by 32 lowercase hex digits.
+/// Exactly `\\.\pipe\lagsmith-` followed by 32 lowercase hex digits.
 pub fn valid_pipe_name(p: &str) -> bool {
-    p.strip_prefix(r"\.\pipe\lagsmith-").is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
+    p.strip_prefix(r"\\.\pipe\lagsmith-").is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
 }
 
 /// The helper's whole command line: exactly `<action-id> <pipe-name>`.
@@ -40,7 +40,7 @@ pub fn parse_args(args: &[String]) -> Option<(&str, &str)> {
 mod tests {
     use super::*;
 
-    const PIPE: &str = r"\.\pipe\lagsmith-0123456789abcdef0123456789abcdef";
+    const PIPE: &str = r"\\.\pipe\lagsmith-0123456789abcdef0123456789abcdef";
 
     fn args(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
@@ -60,14 +60,14 @@ mod tests {
             &["sfc /scannow", PIPE],
             &["format-c", PIPE],
             &[r"..\..\cmd.exe", PIPE],
-            &["sfc", r"\.\pipe\lagsmith-0123456789ABCDEF0123456789ABCDEF"],
-            &["sfc", r"\.\pipe\lagsmith-0123456789abcdef0123456789abcde"],
-            &["sfc", r"\.\pipe\lagsmith-0123456789abcdef0123456789abcdef0"],
+            &["sfc", r"\\.\pipe\lagsmith-0123456789ABCDEF0123456789ABCDEF"],
+            &["sfc", r"\\.\pipe\lagsmith-0123456789abcdef0123456789abcde"],
+            &["sfc", r"\\.\pipe\lagsmith-0123456789abcdef0123456789abcdef0"],
             &["sfc", r"\evil\pipe\lagsmith-0123456789abcdef0123456789abcdef"],
             &["sfc", r"C:\Users\x\lagsmith-0123456789abcdef0123456789abcdef"],
-            &["sfc", r"\.\pipe\lagsmith-0123456789abcdef0123456789abcde\"],
+            &["sfc", r"\\.\pipe\lagsmith-0123456789abcdef0123456789abcde\"],
             &["sfc", r"\.\pipe\other-0123456789abcdef0123456789abcdef"],
-            &["sfc", r"\.\pipe\lagsmith-../../0123456789abcdef0123456789ab"],
+            &["sfc", r"\\.\pipe\lagsmith-../../0123456789abcdef0123456789ab"],
         ];
         for b in bad {
             assert!(parse_args(&args(b)).is_none(), "{b:?}");
