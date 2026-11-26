@@ -45,10 +45,30 @@ test("A1 A11 A12: Hardware shows BIOS, cores and threads, page file, battery", a
   await expect(page.getByText(/page file/i).first()).toBeVisible();
 });
 
+test("A12 A16: dashboard flags the power mode and shows the real driver check result", async () => {
+  await open(/^Dashboard$/);
+  const viewAll = page.getByRole("button", { name: /View all/ });
+  if (await viewAll.count()) await viewAll.first().click();
+  await expect(page.getByText("Power mode is set to Best power efficiency")).toBeVisible({ timeout: 30_000 });
+  // Windows Update search takes ~20 s; this PC has no newer display driver (only monitor and audio upgrades).
+  await expect(page.getByText("Up to date").first()).toBeVisible({ timeout: 120_000 });
+  await expect(page.getByText(/via Windows Update/).first()).toBeVisible();
+});
+
+test("A12: Hardware shows the worn battery (~25% health)", async () => {
+  await open(/^Hardware$/);
+  await expect(page.getByText(/Health [1-3]\d%/).first()).toBeVisible({ timeout: 30_000 });
+});
+
+test("A17: Debloat shows the honest empty state on this PC", async () => {
+  await open(/Debloat/);
+  await expect(page.getByText("No removable Store apps found.")).toBeVisible({ timeout: 30_000 });
+});
+
 test("A13 A19 A20: Gaming shows Secure Boot, TPM 2.0, Game Mode and anti-cheat status", async () => {
   await open(/Gaming Mode/);
-  await expect(page.getByText(/TPM/).first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/2\.0/).first()).toBeVisible();
+  const tpmRow = page.locator("li, tr, div").filter({ hasText: /^\s*TPM/ }).filter({ hasText: /2\.0/ });
+  await expect(tpmRow.first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Secure Boot/).first()).toBeVisible();
   await expect(page.getByText(/Game Mode/).first()).toBeVisible();
   await expect(page.getByText(/Memory Integrity/).first()).toBeVisible();
@@ -77,7 +97,10 @@ test("A10: Memory lists top apps with no anti-cheat process", async () => {
 
 test("A18: System Repair shows the last SFC state", async () => {
   await open(/System Repair/);
-  await expect(page.getByText(/SFC|System File/i).first()).toBeVisible({ timeout: 30_000 });
+  // Either a real outcome badge or the honest "not found" message (Windows compresses old CBS logs).
+  await expect(
+    page.getByText(/No SFC run found in the CBS log\.|Repaired|No problems|Couldn.t repair/i).first(),
+  ).toBeVisible({ timeout: 30_000 });
 });
 
 test("History page loads", async () => {
