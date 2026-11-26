@@ -44,7 +44,3 @@ export function shortGpuName(name: string): string {
     .trim();
 }
 
-/** "C", "C:" or "C:\\" -> "C:". */
-export function driveName(letter: string): string {
-  return letter.replace(/[:\\]+$/, "") + ":";
-}

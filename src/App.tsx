@@ -27,12 +27,12 @@ export default function App() {
     <div className="flex h-full min-w-[1100px]">
       <Sidebar page={page} onNavigate={setPage} osName={osName} />
       <main ref={main} className="min-w-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[1440px] px-8 pt-8 pb-10">
+        <div className="mx-auto max-w-[1440px] px-6 pt-5 pb-5">
           {page === "dashboard" && (
             <>
               <TopBar
                 title={userName ? `${greeting()}, ${userName}` : greeting()}
-                subtitle="Check your system health, fix issues, and keep it optimized for gaming."
+                subtitle="Check your system health and see what is slowing it down for gaming."
                 userName={userName}
               />
               <ScanHero onScan={loadAll} scanning={busy} />

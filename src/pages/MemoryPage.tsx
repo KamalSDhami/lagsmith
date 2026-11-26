@@ -12,9 +12,9 @@ import { ICON_STROKE } from "./nav";
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <Card className="p-[18px]">
-      <div className="text-[14px] font-medium text-muted">{label}</div>
-      <div className="mt-2 text-[24px] leading-tight font-semibold tracking-tight">{value}</div>
-      {sub && <div className="mt-1 text-[13px] text-muted">{sub}</div>}
+      <div className="text-[0.875rem] font-medium text-muted">{label}</div>
+      <div className="mt-2 text-[1.5rem] leading-tight font-semibold tracking-tight">{value}</div>
+      {sub && <div className="mt-1 text-[0.8125rem] text-muted">{sub}</div>}
     </Card>
   );
 }
@@ -33,13 +33,13 @@ function Body({ m }: { m: Memory }) {
 
       <Card className="mt-4 p-[18px]">
         <div className="flex items-baseline justify-between gap-4">
-          <h2 className="text-[15px] font-medium">Commit charge</h2>
-          <div className="text-[14px]">
+          <h2 className="text-[0.9375rem] font-medium">Commit charge</h2>
+          <div className="text-[0.875rem]">
             <span className="font-medium">{formatGB(m.commitBytes)}</span>
             <span className="text-muted"> of {formatGB(m.commitLimitBytes)} limit</span>
           </div>
         </div>
-        <p className="mt-1 text-[13px] text-muted">
+        <p className="mt-1 text-[0.8125rem] text-muted">
           Memory that programs have reserved, backed by RAM plus the page file. Near the limit, apps can fail to start.
         </p>
         <div className="mt-3">
@@ -48,10 +48,10 @@ function Body({ m }: { m: Memory }) {
       </Card>
 
       <Card className="mt-4 overflow-hidden">
-        <h2 className="px-5 pt-4 pb-2 text-[15px] font-medium">Top apps by memory</h2>
-        <table className="w-full text-[14px]">
+        <h2 className="px-5 pt-4 pb-2 text-[0.9375rem] font-medium">Top apps by memory</h2>
+        <table className="w-full text-[0.875rem]">
           <thead>
-            <tr className="border-b border-line text-left text-[13px] text-muted">
+            <tr className="border-b border-line text-left text-[0.8125rem] text-muted">
               <th scope="col" className="px-5 py-2 font-medium">App</th>
               <th scope="col" className="px-5 py-2 text-right font-medium">Processes</th>
               <th scope="col" className="px-5 py-2 text-right font-medium">Memory</th>
@@ -85,8 +85,8 @@ export function MemoryPage({ mem, onRefresh }: { mem: Load<Memory>; onRefresh: (
     <div>
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-[28px] leading-tight font-semibold tracking-tight">Memory</h1>
-          <p className="mt-1 text-[15px] text-muted">How your RAM is being used right now.</p>
+          <h1 className="text-[1.75rem] leading-tight font-semibold tracking-tight">Memory</h1>
+          <p className="mt-1 text-[0.9375rem] text-muted">How your RAM is being used right now.</p>
         </div>
         <Button variant="outline" onClick={onRefresh} disabled={loading}>
           <RefreshCw size={17} strokeWidth={ICON_STROKE} aria-hidden className={loading ? "motion-safe:animate-spin" : ""} />
@@ -98,7 +98,7 @@ export function MemoryPage({ mem, onRefresh }: { mem: Load<Memory>; onRefresh: (
         <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-info-soft text-info">
           <Info size={18} strokeWidth={ICON_STROKE} aria-hidden />
         </span>
-        <p className="text-[14px] leading-relaxed text-muted">
+        <p className="text-[0.875rem] leading-relaxed text-muted">
           Lagsmith doesn't automatically 'clean' RAM. Emptying memory on a timer forces Windows to reload files from
           disk and causes stutter in games.
         </p>

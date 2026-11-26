@@ -1,6 +1,6 @@
 import type { Commands, Drive, Gpu, Hardware, Stability, StartupApp } from "../types";
 import type { Page } from "../pages/nav";
-import { driveName, formatGB, formatRam, isoDay, plural } from "./format";
+import { formatGB, formatRam, isoDay, plural } from "./format";
 
 export function blueScreensLast7Days(s: Stability, now = new Date()): number {
   const start = new Date(now);
@@ -13,8 +13,9 @@ export function blueScreensLast7Days(s: Stability, now = new Date()): number {
     .reduce((n, d) => n + d.blueScreens, 0);
 }
 
+/** Rust returns crashes newest first. */
 export function latestCrash(s: Stability) {
-  return [...s.crashes].sort((a, b) => Date.parse(b.time) - Date.parse(a.time))[0];
+  return s.crashes[0];
 }
 
 export function systemDrive(drives: Drive[]): Drive | undefined {
@@ -40,8 +41,14 @@ export function primaryGpu(h: Hardware): Gpu | undefined {
   );
 }
 
+/** 0 sticks means the stick count could not be read. */
 export function isSingleChannel(h: Hardware): boolean {
-  return h.ramSticks < 2;
+  return h.ramSticks === 1;
+}
+
+export function channelLabel(h: Hardware): string {
+  if (h.ramSticks === 0) return "Channel unknown";
+  return h.ramSticks === 1 ? "Single channel" : "Dual channel";
 }
 
 export function needsRamUpgradeTip(h: Hardware): boolean {
@@ -65,8 +72,8 @@ export interface Finding {
   body: string;
   evidence: string;
   source: string;
-  action: string;
-  page: Page;
+  /** Button label and destination; omitted when there is nothing more to show. */
+  action?: { label: string; page: Page };
 }
 
 type Partial7 = {
@@ -93,8 +100,7 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
         body: latest?.meaning ? `${body} Latest: ${latest.meaning}` : body,
         evidence: plural(n, "blue screen", "blue screens"),
         source: "Windows Event Log",
-        action: "Investigate",
-        page: "crash",
+        action: { label: "View crashes", page: "crash" },
       });
     }
   }
@@ -102,16 +108,14 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
   if (d.storage) {
     const c = systemDrive(d.storage.drives);
     if (c && freeRatio(c) < LOW_DISK_RATIO) {
-      const letter = driveName(c.letter);
       out.push({
         id: "disk",
         severity: "warning",
-        title: `Low disk space on ${letter}`,
+        title: `Low disk space on ${c.letter}`,
         body: "Your system drive is almost full, which can cause slowdowns and crashes.",
         evidence: `${formatGB(c.freeBytes)} free of ${formatGB(c.totalBytes)}`,
         source: "Disk scan",
-        action: "Review Cleanup",
-        page: "storage",
+        action: { label: "View storage", page: "storage" },
       });
     }
   }
@@ -125,8 +129,7 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
       body: `Your ${ram} RAM is running in single channel, which reduces memory bandwidth for your graphics.`,
       evidence: `${ram} · ${plural(d.hardware.ramSticks, "stick", "sticks")}`,
       source: "Hardware check",
-      action: "View Upgrade Tip",
-      page: "hardware",
+      action: { label: "View hardware", page: "hardware" },
     });
   }
 
@@ -140,8 +143,7 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
         body: "Each one adds to boot time and keeps running in the background while you play.",
         evidence: plural(n, "app", "apps"),
         source: "Startup entries",
-        action: "Manage startup",
-        page: "startup",
+        action: { label: "View startup apps", page: "startup" },
       });
     }
   }
@@ -154,8 +156,6 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
       body: "It costs some gaming performance but protects against malicious drivers. Lagsmith explains it but never changes it for you.",
       evidence: "",
       source: "Device Guard",
-      action: "Learn more",
-      page: "hardware",
     });
   }
 

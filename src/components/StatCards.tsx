@@ -8,14 +8,14 @@ import { Progress } from "./ui/progress";
 import { Skeleton } from "./ui/skeleton";
 import { Popover } from "./ui/popover";
 import { cn } from "../lib/cn";
-import { driveName, formatGB, formatRam, plural, shortGpuName } from "../lib/format";
+import { formatGB, formatRam, plural, shortGpuName } from "../lib/format";
 import {
   LOW_DISK_RATIO,
   blueScreensLast7Days,
   enabledStartup,
   freeRatio,
+  channelLabel,
   hasDisplayDriverUpdate,
-  isSingleChannel,
   needsRamUpgradeTip,
   primaryGpu,
   realGpus,
@@ -40,13 +40,13 @@ function CardHead({
     <div className="flex items-center gap-2.5">
       <span
         className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-xl",
+          "grid size-8 shrink-0 place-items-center rounded-lg",
           tile === "danger" ? "bg-danger-soft text-danger" : "bg-tile text-tile-ink",
         )}
       >
-        <Icon size={18} strokeWidth={ICON_STROKE} aria-hidden />
+        <Icon size={17} strokeWidth={ICON_STROKE} aria-hidden />
       </span>
-      <h3 className="truncate text-[15px] font-medium">{title}</h3>
+      <h3 className="truncate text-[0.9375rem] font-medium">{title}</h3>
       {extra}
     </div>
   );
@@ -54,29 +54,29 @@ function CardHead({
 
 function Value({ children, title }: { children: ReactNode; title?: string }) {
   return (
-    <div title={title} className="mt-3.5 truncate text-[22px] leading-tight font-semibold tracking-tight">
+    <div title={title} className="mt-2.5 truncate text-[1.375rem] leading-tight font-semibold tracking-tight">
       {children}
     </div>
   );
 }
 
 function Sub({ children }: { children: ReactNode }) {
-  return <div className="mt-1 truncate text-[14px] text-muted">{children}</div>;
+  return <div className="mt-1 truncate text-[0.875rem] text-muted">{children}</div>;
 }
 
 function Loading() {
   return (
     <div aria-hidden>
-      <Skeleton className="mt-4 h-6 w-3/4" />
+      <Skeleton className="mt-3 h-6 w-3/4" />
       <Skeleton className="mt-2 h-4 w-1/2" />
-      <Skeleton className="mt-4 h-7 w-24 rounded-lg" />
+      <Skeleton className="mt-3 h-7 w-24 rounded-lg" />
     </div>
   );
 }
 
 export function InlineError({ what, onRetry }: { what: string; onRetry: () => void }) {
   return (
-    <div className="mt-4 text-[14px]" role="alert">
+    <div className="mt-3 text-[0.875rem]" role="alert">
       <p className="text-muted">Couldn't read {what}</p>
       <button onClick={onRetry} className="mt-1 font-medium text-accent underline-offset-2 hover:underline">
         Try again
@@ -85,7 +85,7 @@ export function InlineError({ what, onRetry }: { what: string; onRetry: () => vo
   );
 }
 
-const shell = "h-full p-[18px] text-left";
+const shell = "h-full p-3.5 text-left";
 
 function StabilityCard({ d, retry }: { d: SystemData; retry: Retry }) {
   const s = d.get_stability;
@@ -99,7 +99,7 @@ function StabilityCard({ d, retry }: { d: SystemData; retry: Retry }) {
         <>
           <Value>{plural(n, "blue screen", "blue screens")}</Value>
           <Sub>in the last 7 days</Sub>
-          <div className="mt-3">
+          <div className="mt-2.5">
             {n > 0 ? <Badge tone="danger">Needs Attention</Badge> : <Badge tone="success">Stable</Badge>}
           </div>
         </>
@@ -122,10 +122,10 @@ function StorageCard({ d, retry }: { d: SystemData; retry: Retry }) {
         <>
           <Value>{formatGB(c.freeBytes)} free</Value>
           <Sub>
-            of {formatGB(c.totalBytes)} ({driveName(c.letter)})
+            of {formatGB(c.totalBytes)} ({c.letter})
           </Sub>
-          <div className="mt-[22px]">
-            <Progress value={1 - freeRatio(c)} tone={low ? "warning" : "accent"} label={`${driveName(c.letter)} used space`} />
+          <div className="mt-[1.125rem]">
+            <Progress value={1 - freeRatio(c)} tone={low ? "warning" : "accent"} label={`${c.letter} used space`} />
           </div>
         </>
       )}
@@ -144,10 +144,11 @@ function MemoryCard({ d, retry }: { d: SystemData; retry: Retry }) {
         <>
           <Value>{formatRam(h.data.ramBytes)}</Value>
           <Sub>
-            {plural(h.data.ramSticks, "stick", "sticks")} · {isSingleChannel(h.data) ? "Single channel" : "Dual channel"}
+            {h.data.ramSticks > 0 ? `${plural(h.data.ramSticks, "stick", "sticks")} · ` : ""}
+            {channelLabel(h.data)}
           </Sub>
           {needsRamUpgradeTip(h.data) && (
-            <div className="mt-3">
+            <div className="mt-2.5">
               <Badge tone="warning">Upgrade Tip</Badge>
             </div>
           )}
@@ -180,10 +181,10 @@ function GpuList({ gpus }: { gpus: Gpu[] }) {
       {gpus.map((g, i) => (
         <li key={i} className="px-3 py-3">
           <div className="flex items-start justify-between gap-3">
-            <div className="text-[14px] font-medium">{g.name}</div>
-            <span className="shrink-0 rounded-md bg-subtle px-2 py-0.5 text-[12px] font-medium">{gpuRole(g)}</span>
+            <div className="text-[0.875rem] font-medium">{g.name}</div>
+            <span className="shrink-0 rounded-md bg-subtle px-2 py-0.5 text-[0.75rem] font-medium">{gpuRole(g)}</span>
           </div>
-          <div className="mt-1 text-[13px] text-muted">
+          <div className="mt-1 text-[0.8125rem] text-muted">
             {g.kind === "dedicated" && g.dedicatedBytes > 0 ? `${formatRam(g.dedicatedBytes)} dedicated` : "Shared memory"} ·
             Driver {g.driverVersion}
           </div>
@@ -228,7 +229,7 @@ function GraphicsCard({ d, retry }: { d: SystemData; retry: Retry }) {
             title="Graphics"
             extra={
               extra > 0 && (
-                <span className="ml-auto rounded-md bg-subtle px-1.5 py-0.5 text-[12px] font-medium text-muted">
+                <span className="ml-auto rounded-md bg-subtle px-1.5 py-0.5 text-[0.75rem] font-medium text-muted">
                   +{extra}
                 </span>
               )
@@ -238,24 +239,25 @@ function GraphicsCard({ d, retry }: { d: SystemData; retry: Retry }) {
             <>
               <Value title={gpu.name}>{shortGpuName(gpu.name)}</Value>
               <Sub>Driver {gpu.driverVersion}</Sub>
-              <div className="mt-3">
+              <div className="mt-2.5">
                 <DriverPill d={d} />
               </div>
-              {driverFailed ? (
-                <div className="mt-1.5 flex items-baseline gap-2 text-[12px] leading-snug">
-                  <span className="text-muted">Check failed</span>
-                  <button
-                    onClick={() => retry("check_driver_updates")}
-                    className="relative z-[2] font-medium text-accent underline-offset-2 hover:underline"
-                  >
-                    Try again
-                  </button>
-                </div>
-              ) : (
-                d.check_driver_updates.status === "ok" && (
-                  <div className="mt-1.5 text-[12px] leading-snug text-muted">Checked on Windows Update</div>
-                )
-              )}
+              <div className="mt-1 flex h-[1.125rem] items-baseline gap-2 overflow-hidden whitespace-nowrap text-[0.75rem] leading-snug text-muted">
+                {driverFailed ? (
+                  <>
+                    <span>Check failed</span>
+                    <button
+                      onClick={() => retry("check_driver_updates")}
+                      aria-label="Retry the driver update check"
+                      className="relative z-[2] font-medium text-accent underline-offset-2 hover:underline"
+                    >
+                      Retry
+                    </button>
+                  </>
+                ) : (
+                  d.check_driver_updates.status === "ok" && "via Windows Update"
+                )}
+              </div>
             </>
           ) : (
             <Sub>No graphics adapter found</Sub>
@@ -263,7 +265,7 @@ function GraphicsCard({ d, retry }: { d: SystemData; retry: Retry }) {
         </Card>
       }
     >
-      <div className="px-3 pt-2 pb-1 text-[13px] font-medium text-muted">Graphics adapters</div>
+      <div className="px-3 pt-2 pb-1 text-[0.8125rem] font-medium text-muted">Graphics adapters</div>
       <GpuList gpus={gpus.length ? gpus : h.data.gpus} />
     </Popover>
   );
@@ -280,7 +282,7 @@ function StartupCard({ d, retry }: { d: SystemData; retry: Retry }) {
         <>
           <Value>{plural(enabledStartup(s.data), "app", "apps")}</Value>
           <Sub>Start with Windows</Sub>
-          <div className="mt-3">
+          <div className="mt-2.5">
             <Badge tone="neutral">Review</Badge>
           </div>
         </>
@@ -291,7 +293,7 @@ function StartupCard({ d, retry }: { d: SystemData; retry: Retry }) {
 
 export function StatCards({ data, retry }: { data: SystemData; retry: Retry }) {
   return (
-    <section aria-label="System summary" className="mt-5 grid grid-cols-3 gap-4 min-[1240px]:grid-cols-5">
+    <section aria-label="System summary" className="mt-3 grid grid-cols-3 gap-3 min-[1240px]:grid-cols-5">
       <StabilityCard d={data} retry={retry} />
       <StorageCard d={data} retry={retry} />
       <MemoryCard d={data} retry={retry} />

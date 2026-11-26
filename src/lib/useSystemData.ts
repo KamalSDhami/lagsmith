@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Commands } from "../types";
 import { call } from "./api";
 
-export type Cmd = keyof Commands;
+/** Commands the app loads. `get_caches` exists in the contract but nothing uses it yet. */
+export type Cmd = Exclude<keyof Commands, "get_caches">;
 
 export type Load<T> =
   | { status: "loading"; data?: T }
@@ -20,6 +21,8 @@ const ALL: Cmd[] = [
   "get_security",
   "check_driver_updates",
 ];
+
+const SCAN: Cmd[] = ALL.filter((c) => c !== "check_driver_updates");
 
 function initial(): SystemData {
   return Object.fromEntries(ALL.map((c) => [c, { status: "loading" }])) as SystemData;
@@ -52,12 +55,14 @@ export function useSystemData() {
     );
   }, []);
 
-  const loadAll = useCallback(() => ALL.forEach((c) => load(c)), [load]);
+  // "Scan Now" re-runs the local reads only. The Windows Update driver check is slow and
+  // network-bound, so it runs once at start and the Graphics card shows its own state.
+  const loadAll = useCallback(() => SCAN.forEach((c) => load(c)), [load]);
 
   useEffect(() => {
-    loadAll();
-  }, [loadAll]);
+    ALL.forEach((c) => load(c));
+  }, [load]);
 
-  const busy = ALL.some((c) => state[c].status === "loading");
+  const busy = SCAN.some((c) => state[c].status === "loading");
   return { data: state, load, loadAll, busy };
 }

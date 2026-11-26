@@ -7,13 +7,3 @@ export function LogoMark({ className }: { className?: string }) {
   );
 }
 
-export function WindowsMark({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 20 20" aria-hidden className={className}>
-      <rect x="1" y="1" width="8.5" height="8.5" rx="1" fill="#1f6fd1" />
-      <rect x="10.5" y="1" width="8.5" height="8.5" rx="1" fill="#1f6fd1" />
-      <rect x="1" y="10.5" width="8.5" height="8.5" rx="1" fill="#1f6fd1" />
-      <rect x="10.5" y="10.5" width="8.5" height="8.5" rx="1" fill="#1f6fd1" />
-    </svg>
-  );
-}

@@ -26,7 +26,7 @@ export interface Hardware {
 
 export interface Drive { letter: string; totalBytes: number; freeBytes: number; isSystem: boolean }
 export interface CacheItem { id: string; name: string; displayPath: string; bytes: number; group: "devCache" | "systemTemp" }
-export interface Storage { drives: Drive[]; caches: CacheItem[] }
+export interface Storage { drives: Drive[] }
 
 export interface DayEvents { date: string; blueScreens: number; unexpectedShutdowns: number }
 export interface Crash { time: string; code: string; meaning: string; dumpFile: string | null }
@@ -51,6 +51,7 @@ export interface Security { memoryIntegrity: boolean }
 export type Commands = {
   get_hardware: Hardware;
   get_storage: Storage;
+  get_caches: CacheItem[];
   get_stability: Stability;
   get_startup: StartupApp[];
   get_memory: Memory;

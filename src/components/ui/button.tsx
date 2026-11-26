@@ -12,9 +12,9 @@ const variants: Record<Variant, string> = {
 };
 
 const sizes: Record<Size, string> = {
-  sm: "h-8 px-3 text-[13px] gap-1.5 rounded-lg",
+  sm: "h-8 px-3 text-[0.8125rem] gap-1.5 rounded-lg",
   md: "h-10 px-4 text-sm gap-2 rounded-xl",
-  lg: "h-12 px-6 text-[15px] gap-2.5 rounded-xl",
+  lg: "h-12 px-6 text-[0.9375rem] gap-2.5 rounded-xl",
   icon: "size-11 rounded-full",
 };
 
@@ -31,7 +31,7 @@ export function Button({ variant = "primary", size = "md", className, type = "bu
         "inline-flex shrink-0 items-center justify-center font-medium whitespace-nowrap transition-colors",
         variants[variant],
         variant !== "link" && sizes[size],
-        variant === "link" && "text-[13px]",
+        variant === "link" && "text-[0.8125rem]",
         className,
       )}
       {...props}
