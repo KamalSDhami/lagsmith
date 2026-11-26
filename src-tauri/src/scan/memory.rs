@@ -6,7 +6,7 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS,
 };
 use windows::Win32::System::ProcessStatus::{
-    GetPerformanceInfo, K32GetProcessMemoryInfo, PERFORMANCE_INFORMATION, PROCESS_MEMORY_COUNTERS,
+    GetPerformanceInfo, K32GetProcessMemoryInfo, PERFORMANCE_INFORMATION, PROCESS_MEMORY_COUNTERS_EX2,
 };
 use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
@@ -38,7 +38,7 @@ fn top_apps() -> Result<Vec<AppMemory>, String> {
     while more {
         let name = utf16_to_string(&entry.szExeFile);
         // Never open a handle to a game or anti-cheat process, even query-only (docs/ANTI-CHEAT.md).
-        let bytes = if super::protected::is_protected(&name) { None } else { working_set(entry.th32ProcessID) };
+        let bytes = if super::protected::is_protected(&name) { None } else { private_working_set(entry.th32ProcessID) };
         if let Some(bytes) = bytes {
             let g = groups.entry(name).or_default();
             g.0 += 1;
@@ -55,13 +55,15 @@ fn top_apps() -> Result<Vec<AppMemory>, String> {
     Ok(apps)
 }
 
-fn working_set(pid: u32) -> Option<u64> {
+fn private_working_set(pid: u32) -> Option<u64> {
     if pid == 0 {
         return None;
     }
     let h = unsafe { OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) }.ok()?;
-    let mut pmc = PROCESS_MEMORY_COUNTERS::default();
-    let ok = unsafe { K32GetProcessMemoryInfo(h, &mut pmc, size_of::<PROCESS_MEMORY_COUNTERS>() as u32) }.as_bool();
+    // Private working set is what Task Manager's Memory column shows; shared pages aren't counted twice.
+    let mut pmc = PROCESS_MEMORY_COUNTERS_EX2::default();
+    let size = size_of::<PROCESS_MEMORY_COUNTERS_EX2>() as u32;
+    let ok = unsafe { K32GetProcessMemoryInfo(h, (&raw mut pmc).cast(), size) }.as_bool();
     let _ = unsafe { CloseHandle(h) };
-    ok.then_some(pmc.WorkingSetSize as u64)
+    ok.then_some(pmc.PrivateWorkingSetSize as u64)
 }

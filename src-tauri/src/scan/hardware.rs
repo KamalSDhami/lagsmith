@@ -75,7 +75,7 @@ pub fn read() -> Result<Hardware, String> {
         ram_sticks: sticks.len() as u32,
         // Use 3 = system memory; other arrays are flash or video memory.
         ram_slots: arrays.iter().filter(|a| a.Use.is_none_or(|u| u == 3)).filter_map(|a| a.MemoryDevices).sum(),
-        ram_speed_mhz: sticks.iter().filter_map(|s| s.Speed.or(s.ConfiguredClockSpeed)).max().unwrap_or(0),
+        ram_speed_mhz: sticks.iter().filter_map(|s| s.ConfiguredClockSpeed.filter(|&c| c > 0).or(s.Speed)).max().unwrap_or(0),
         gpus: gpus(video),
     })
 }
@@ -169,7 +169,8 @@ fn classify(lower_name: &str, compat: &str, dedicated: u64) -> (String, GpuKind)
     } else if has("intel") {
         ("Intel".into(), GpuKind::Integrated)
     } else if has("amd") || has("radeon") || has("advanced micro devices") {
-        let rx = lower_name.contains("radeon rx") || lower_name.contains("radeon pro");
+        // APUs end in "Graphics" even with RX in the name ("Radeon RX Vega 10 Graphics").
+        let rx = (lower_name.contains("radeon rx") || lower_name.contains("radeon pro")) && !lower_name.trim_end().ends_with("graphics");
         ("AMD".into(), if rx { GpuKind::Dedicated } else { GpuKind::Integrated })
     } else {
         // shortcut: unknown vendors are guessed from VRAM size; add vendors here as they show up.
@@ -213,6 +214,7 @@ mod tests {
         assert_eq!(classify("nvidia geforce mx150", "NVIDIA", 0).1, GpuKind::Dedicated);
         assert_eq!(classify("amd radeon rx 6600", "Advanced Micro Devices, Inc.", 0).1, GpuKind::Dedicated);
         assert_eq!(classify("amd radeon(tm) graphics", "Advanced Micro Devices, Inc.", 0).1, GpuKind::Integrated);
+        assert_eq!(classify("amd radeon rx vega 10 graphics", "Advanced Micro Devices, Inc.", 0).1, GpuKind::Integrated);
     }
 
     #[test]

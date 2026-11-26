@@ -4,6 +4,7 @@ use super::{civil_from_days, days_from_civil};
 use crate::model::*;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::sync::Mutex;
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx, CoUninitialize};
 use windows::Win32::System::SystemInformation::GetSystemTime;
 use windows::Win32::System::UpdateAgent::{IUpdateSession, IWindowsDriverUpdate, UpdateSession};
@@ -25,8 +26,25 @@ impl Drop for ComGuard {
     }
 }
 
+// Once per app run: the search takes 10-60 s and the answer won't change meanwhile.
+// Failures aren't cached, so a later call retries.
+static CACHE: Mutex<Option<DriverUpdates>> = Mutex::new(None);
+
 pub fn check() -> Result<DriverUpdates, String> {
+    // Held for the whole search, so overlapping callers wait and then get the cached result.
+    let mut cached = CACHE.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if let Some(done) = cached.as_ref() {
+        return Ok(done.clone());
+    }
+    let fresh = check_now()?;
+    *cached = Some(fresh.clone());
+    Ok(fresh)
+}
+
+fn check_now() -> Result<DriverUpdates, String> {
     // Own thread so COM's apartment can't clash with whatever a pooled thread was left in.
+    // Its CoUninitialize only releases this thread: the process-wide MTA that WMI uses is kept
+    // alive by the CoIncrementMTAUsage cookie taken in run() (and by the wmi crate in tests).
     std::thread::spawn(|| {
         let hr = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
         if hr.is_err() {
@@ -101,6 +119,8 @@ fn installed_older(installed: &HashMap<String, u32>, offered_hwid: &str, offered
 
 /// OLE Automation DATE (days since 1899-12-30) -> yyyymmdd.
 fn ole_date_ymd(date: f64) -> u32 {
+    // Clamp to the OLE range (year 100 to 9999) so a bogus value can't overflow; NaN becomes 0.
+    let date = date.clamp(-657_434.0, 2_958_465.0);
     let (y, m, d) = civil_from_days(date.floor() as i64 + days_from_civil(1899, 12, 30));
     y as u32 * 10000 + m * 100 + d
 }
@@ -123,6 +143,8 @@ mod tests {
     fn date_conversions() {
         assert_eq!(ole_date_ymd(0.0), 18991230);
         assert_eq!(ole_date_ymd(46_174.5), 20260601);
+        assert_eq!(ole_date_ymd(f64::MAX), 99991231);
+        assert_eq!(ole_date_ymd(f64::NAN), 18991230);
         assert_eq!(cim_date_ymd("20170717000000.******+***"), Some(20170717));
         assert_eq!(cim_date_ymd("bad"), None);
     }

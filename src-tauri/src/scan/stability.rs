@@ -36,45 +36,63 @@ pub fn read() -> Result<Stability, String> {
     let mut bsod_secs = Vec::new();
     let mut shutdowns = Vec::new();
     let mut driver_resets = 0;
-    for e in &events {
+    for (idx, e) in events.iter().enumerate() {
         match e.id {
             1001 => {
                 let code = data(e, "param1").and_then(parse_bugcheck);
                 days[(e.local_day - first) as usize].blue_screens += 1;
                 bsod_secs.push(e.utc_secs);
-                crashes.push(Crash {
-                    time: e.time.clone(),
-                    code: code.map_or_else(|| "unknown".into(), |c| format!("0x{c:08X}")),
-                    meaning: code.map_or("", meaning).into(),
-                    dump_file: data(e, "param2").filter(|p| !p.is_empty()).map(str::to_string),
-                });
+                crashes.push(crash(e, code, data(e, "param2").filter(|p| !p.is_empty()).map(str::to_string)));
             }
             41 | 6008 => {
-                let bugcheck = e.id == 41 && data(e, "BugcheckCode").is_some_and(|c| c.trim() != "0");
-                shutdowns.push(Shutdown { secs: e.utc_secs, day: e.local_day, bugcheck });
+                // Kernel-Power logs BugcheckCode in decimal (206 = 0xCE); 0 means no blue screen.
+                let bugcheck = if e.id == 41 { data(e, "BugcheckCode").and_then(|c| c.trim().parse().ok()).filter(|&c| c != 0) } else { None };
+                shutdowns.push(Shutdown { secs: e.utc_secs, idx, bugcheck });
             }
             4101 => driver_resets += 1,
             _ => {}
         }
     }
-    for day in incidents(shutdowns, &bsod_secs) {
-        days[(day - first) as usize].unexpected_shutdowns += 1;
+    for incident in incidents(shutdowns, &bsod_secs) {
+        match incident {
+            Incident::Shutdown(idx) => days[(events[idx].local_day - first) as usize].unexpected_shutdowns += 1,
+            Incident::BlueScreen(idx, code) => {
+                let e = &events[idx];
+                days[(e.local_day - first) as usize].blue_screens += 1;
+                crashes.push(crash(e, Some(code), None));
+            }
+        }
     }
     crashes.sort_by(|a, b| b.time.cmp(&a.time));
     Ok(Stability { days, crashes, driver_resets })
 }
 
+fn crash(e: &Event, code: Option<u32>, dump_file: Option<String>) -> Crash {
+    Crash {
+        time: e.time.clone(),
+        code: code.map_or_else(|| "unknown".into(), |c| format!("0x{c:08X}")),
+        meaning: code.map_or("", meaning).into(),
+        dump_file,
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Shutdown {
     secs: i64,
-    day: i64,
-    bugcheck: bool,
+    idx: usize, // into the event list
+    bugcheck: Option<u32>,
 }
 
-/// Merges 41/6008 events that are minutes apart into one incident, and drops incidents that
-/// were really a blue screen (41 carries a bugcheck code, or a 1001 was logged alongside),
-/// since those are already counted as blue screens. Returns the local day of each incident.
-fn incidents(mut events: Vec<Shutdown>, bsod_secs: &[i64]) -> Vec<i64> {
+#[derive(Debug, PartialEq)]
+enum Incident {
+    Shutdown(usize),
+    /// A 41 with a bugcheck code but no 1001 (the dump wasn't written): still a blue screen.
+    BlueScreen(usize, u32),
+}
+
+/// Merges 41/6008 events that are minutes apart into one incident. Incidents next to a 1001 are
+/// dropped, since that blue screen is already counted. Values are indexes of each incident's first event.
+fn incidents(mut events: Vec<Shutdown>, bsod_secs: &[i64]) -> Vec<Incident> {
     events.sort_by_key(|e| e.secs);
     let mut groups: Vec<Vec<Shutdown>> = Vec::new();
     for e in events {
@@ -87,10 +105,12 @@ fn incidents(mut events: Vec<Shutdown>, bsod_secs: &[i64]) -> Vec<i64> {
         .into_iter()
         .filter(|g| {
             let (start, end) = (g[0].secs, g[g.len() - 1].secs);
-            let near_bsod = bsod_secs.iter().any(|&b| b >= start - INCIDENT_WINDOW_SECS && b <= end + INCIDENT_WINDOW_SECS);
-            !near_bsod && !g.iter().any(|e| e.bugcheck)
+            !bsod_secs.iter().any(|&b| b >= start - INCIDENT_WINDOW_SECS && b <= end + INCIDENT_WINDOW_SECS)
         })
-        .map(|g| g[0].day)
+        .map(|g| match g.iter().find_map(|e| e.bugcheck.map(|c| (e.idx, c))) {
+            Some((idx, code)) => Incident::BlueScreen(idx, code),
+            None => Incident::Shutdown(g[0].idx),
+        })
         .collect()
 }
 
@@ -260,24 +280,31 @@ mod tests {
         assert_eq!(meaning(0x1234), "");
     }
 
-    fn sd(secs: i64, day: i64, bugcheck: bool) -> Shutdown {
-        Shutdown { secs, day, bugcheck }
+    fn sd(secs: i64, idx: usize, bugcheck: Option<u32>) -> Shutdown {
+        Shutdown { secs, idx, bugcheck }
     }
 
     #[test]
     fn shutdown_pairs_count_once() {
         // 41 then 6008 twelve seconds later, a week apart: two incidents.
-        let days = incidents(vec![sd(1000, 1, false), sd(1012, 1, false), sd(605_000, 8, false), sd(605_013, 8, false)], &[]);
-        assert_eq!(days, vec![1, 8]);
+        let got = incidents(vec![sd(1000, 0, None), sd(1012, 1, None), sd(605_000, 2, None), sd(605_013, 3, None)], &[]);
+        assert_eq!(got, vec![Incident::Shutdown(0), Incident::Shutdown(2)]);
     }
 
     #[test]
-    fn shutdowns_from_blue_screens_are_dropped() {
-        // A 41 carrying a bugcheck code is a blue screen, and so is a pair next to a 1001.
-        assert!(incidents(vec![sd(1000, 1, true), sd(1011, 1, false)], &[]).is_empty());
-        assert!(incidents(vec![sd(1000, 1, false), sd(1011, 1, false)], &[1009]).is_empty());
+    fn shutdowns_next_to_a_1001_are_dropped() {
+        // The 1001 already counts this blue screen, with or without a bugcheck on the 41.
+        assert!(incidents(vec![sd(1000, 0, Some(0x50)), sd(1011, 1, None)], &[1009]).is_empty());
+        assert!(incidents(vec![sd(1000, 0, None), sd(1011, 1, None)], &[1009]).is_empty());
         // A blue screen hours earlier doesn't absorb a later real shutdown.
-        assert_eq!(incidents(vec![sd(9000, 2, false), sd(9020, 2, false)], &[0]), vec![2]);
+        assert_eq!(incidents(vec![sd(9000, 0, None), sd(9020, 1, None)], &[0]), vec![Incident::Shutdown(0)]);
+    }
+
+    #[test]
+    fn bugcheck_41_without_1001_is_a_blue_screen() {
+        // 6008 first, then the 41 carrying BugcheckCode 206 (0xCE): one blue screen from the 41.
+        assert_eq!(incidents(vec![sd(1011, 1, None), sd(1000, 0, Some(206))], &[]), vec![Incident::BlueScreen(0, 206)]);
+        assert_eq!(meaning(206), meaning(0xCE));
     }
 
     #[test]

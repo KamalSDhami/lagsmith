@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-caches"
+description = "Enables the get_caches command without any pre-configured scope."
+commands.allow = ["get_caches"]
+
+[[permission]]
+identifier = "deny-get-caches"
+description = "Denies the get_caches command without any pre-configured scope."
+commands.deny = ["get_caches"]

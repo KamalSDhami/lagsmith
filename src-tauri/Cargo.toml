@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Lagsmith: diagnose and fix a slow or crashing Windows PC"
 authors = ["Kamal Singh Dhami"]
 edition = "2024"
+license = "MIT"
+repository = "https://github.com/KamalSDhami/lagsmith"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

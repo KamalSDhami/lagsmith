@@ -35,7 +35,6 @@ pub enum GpuKind { Integrated, Dedicated, Software }
 #[serde(rename_all = "camelCase")]
 pub struct Storage {
     pub drives: Vec<Drive>,
-    pub caches: Vec<CacheItem>,
 }
 
 #[derive(Serialize, Clone, Debug)]
@@ -102,7 +101,7 @@ pub struct Memory {
     pub available_bytes: u64,
     pub commit_bytes: u64,
     pub commit_limit_bytes: u64,
-    pub top_apps: Vec<AppMemory>, // top 8 by working set, grouped by exe name
+    pub top_apps: Vec<AppMemory>, // top 8 by private working set (as Task Manager), grouped by exe name; anti-cheat processes skipped
 }
 
 #[derive(Serialize, Clone, Debug)]

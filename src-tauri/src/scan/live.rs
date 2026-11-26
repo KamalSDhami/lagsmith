@@ -9,6 +9,7 @@ fn live_scan() {
     println!("drivers: {:#?} ({:?})", super::drivers::check(), t.elapsed());
     println!("hardware: {:#?}", super::hardware::read());
     println!("storage: {:#?}", super::storage::read());
+    println!("caches: {:#?}", super::storage::caches());
     println!("stability: {:#?}", super::stability::read());
     println!("startup: {:#?}", super::startup::read());
     println!("memory: {:#?}", super::memory::read());

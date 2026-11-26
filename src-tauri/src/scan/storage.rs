@@ -22,7 +22,7 @@ const CACHES: [(&str, &str, &str, &str, CacheGroup); 8] = [
 ];
 
 pub fn read() -> Result<Storage, String> {
-    Ok(Storage { drives: drives()?, caches: caches() })
+    Ok(Storage { drives: drives()? })
 }
 
 fn drives() -> Result<Vec<Drive>, String> {
@@ -51,7 +51,7 @@ fn drives() -> Result<Vec<Drive>, String> {
     Ok(out)
 }
 
-fn caches() -> Vec<CacheItem> {
+pub fn caches() -> Result<Vec<CacheItem>, String> {
     let profile = std::env::var("USERPROFILE").map(|p| long_path(Path::new(&p))).unwrap_or_default();
     let found: Vec<_> = CACHES
         .iter()
@@ -79,7 +79,7 @@ fn caches() -> Vec<CacheItem> {
                 })
             })
             .collect();
-        handles.into_iter().filter_map(|h| h.join().ok()).collect()
+        handles.into_iter().map(|h| h.join().map_err(|_| "Measuring a cache folder crashed".to_string())).collect()
     })
 }
 
