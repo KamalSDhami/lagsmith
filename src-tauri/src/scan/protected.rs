@@ -29,9 +29,45 @@ pub fn is_game_session(exe: &str) -> bool {
         | "faceitservice.exe" | "gamemon.des" | "gamemon64.des")
 }
 
+pub const GATE_MESSAGE: &str = "Close VALORANT and other anti-cheat games first. Lagsmith doesn't change anything while they run.";
+
+/// Refuses while a protected game session is running (the game or its in-game anti-cheat), not merely a tray icon.
+/// Shared by apply_changes, undo_change, run_admin_task and the elevated helper.
+pub fn gate(running: &[String]) -> Result<(), String> {
+    if running.iter().any(|n| is_game_session(n)) { Err(GATE_MESSAGE.into()) } else { Ok(()) }
+}
+
+/// Process image names from a snapshot. No process is ever opened.
+pub fn process_names() -> Result<Vec<String>, String> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS};
+    let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }.map_err(|e| format!("Couldn't list running programs: {e}"))?;
+    let mut names = Vec::new();
+    let mut entry = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
+    let mut more = unsafe { Process32FirstW(snap, &mut entry) }.is_ok();
+    while more {
+        let end = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
+        names.push(String::from_utf16_lossy(&entry.szExeFile[..end]));
+        more = unsafe { Process32NextW(snap, &mut entry) }.is_ok();
+    }
+    let _ = unsafe { CloseHandle(snap) };
+    Ok(names)
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{is_game_session, is_protected};
+    use super::{GATE_MESSAGE, gate, is_game_session, is_protected};
+
+    #[test]
+    fn gate_blocks_protected_processes() {
+        let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(gate(&names(&["explorer.exe", "chrome.exe"])).is_ok());
+        assert_eq!(gate(&names(&["explorer.exe", "VALORANT-Win64-Shipping.exe"])), Err(GATE_MESSAGE.to_string()));
+        assert!(gate(&names(&["vgtray.exe", "RiotClientServices.exe"])).is_ok()); // tray and launcher don't block
+        assert!(gate(&names(&["vgc.exe"])).is_err());
+        assert!(gate(&names(&["EasyAntiCheat_EOS.exe"])).is_err());
+    }
+
 
     #[test]
     fn game_session_ignores_tray_and_launcher() {

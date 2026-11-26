@@ -264,3 +264,44 @@ pub struct DriverUpdate {
 pub struct Security {
     pub memory_integrity: bool,
 }
+
+// ---------- Phase 3: the elevated helper (run_admin_task). Also compiled into lagsmith-helper,
+// ---------- which sends these as JSON lines over a private named pipe.
+
+/// Live progress from the helper, streamed through the command's channel.
+#[derive(Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminEvent {
+    pub stage: String,           // "Verification 45% complete", "Analysing 112526-14828-01.dmp"
+    pub percent: Option<f32>,    // 0..=100 when the tool reports it
+}
+
+#[derive(Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminResult {
+    pub task: String,            // "analyze-dumps" | "sfc" | "dism-restorehealth" | "restore-point"
+    pub ok: bool,
+    // analyze-dumps: "analyzed" | "no_dumps" | "failed"
+    // sfc: "no_problems" | "repaired" | "could_not_repair" | "failed"
+    // dism-restorehealth: "no_problems" | "repaired" | "source_missing" | "failed"
+    // restore-point: "created" | "already_exists" | "protection_off" | "failed"
+    pub outcome: String,
+    pub message: String,         // plain English for the UI
+    pub exit_code: Option<u32>,  // sfc/dism process exit code
+    pub dumps: Vec<DumpAnalysis>, // analyze-dumps only, newest first
+}
+
+#[derive(Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct DumpAnalysis {
+    pub file: String,                  // "112526-14828-01.dmp"
+    pub bugcheck_code: String,         // "0x000000CE"
+    pub parameters: Vec<String>,       // the 4 bugcheck arguments, "0xfffff8078e6cd9bd"
+    pub suspect_module: Option<String>, // "vgk.sys", or None if the faulting address couldn't be resolved
+    pub suspect_from: Option<String>,  // "loaded" | "unloaded"
+    pub drivers: Vec<String>,          // non-Microsoft drivers (image path outside the Windows folder)
+    pub drivers_label: String,         // "cause" when the faulting address resolved to suspect_module, else "drivers present"
+    pub loaded_modules: u32,
+    pub unloaded_modules: u32,
+    pub error: Option<String>,         // which step failed, if any
+}

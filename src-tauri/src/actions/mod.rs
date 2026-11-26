@@ -8,14 +8,11 @@ mod settings;
 mod live;
 
 use crate::model::*;
-use crate::scan::{protected, rfc3339_from_unix, storage, utf16_to_string};
+use crate::scan::{protected, rfc3339_from_unix, storage};
 use settings::{CAPTURE, CAPTURE_STORE, GAME_MODE, as_bool, from_bool, read_dword, write_dword};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use windows::Win32::Foundation::CloseHandle;
-use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS};
 
-pub(crate) const GATE_MESSAGE: &str = "Close VALORANT and other anti-cheat games first. Lagsmith doesn't change anything while they run.";
 const MAX_CHANGES: usize = 50;
 const MAX_HISTORY: usize = 200;
 
@@ -23,7 +20,7 @@ const MAX_HISTORY: usize = 200;
 static LOCK: Mutex<()> = Mutex::new(());
 
 pub fn apply_changes(title: String, changes: Vec<ChangeRequest>) -> Result<ChangeSet, String> {
-    gate(&process_names()?)?;
+    protected::gate(&protected::process_names()?)?;
     if changes.is_empty() || changes.len() > MAX_CHANGES {
         return Err(format!("Expected between 1 and {MAX_CHANGES} changes"));
     }
@@ -38,7 +35,7 @@ pub fn apply_changes(title: String, changes: Vec<ChangeRequest>) -> Result<Chang
 }
 
 pub fn undo_change(id: String) -> Result<ChangeSet, String> {
-    gate(&process_names()?)?;
+    protected::gate(&protected::process_names()?)?;
     let _guard = LOCK.lock().unwrap_or_else(|p| p.into_inner());
     let path = history_path()?;
     let mut history = load_history(&path)?;
@@ -64,27 +61,6 @@ pub fn get_history() -> Result<Vec<ChangeSet>, String> {
     let mut h = load_history(&history_path()?)?;
     h.reverse();
     Ok(h)
-}
-
-// ---------- Gate
-
-/// Refuses while a protected game session is running (the game or its in-game anti-cheat), not merely a tray icon.
-pub(crate) fn gate(running: &[String]) -> Result<(), String> {
-    if running.iter().any(|n| protected::is_game_session(n)) { Err(GATE_MESSAGE.into()) } else { Ok(()) }
-}
-
-/// Process names from a snapshot. No process is ever opened.
-fn process_names() -> Result<Vec<String>, String> {
-    let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }.map_err(|e| format!("Couldn't list running programs: {e}"))?;
-    let mut names = Vec::new();
-    let mut entry = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
-    let mut more = unsafe { Process32FirstW(snap, &mut entry) }.is_ok();
-    while more {
-        names.push(utf16_to_string(&entry.szExeFile));
-        more = unsafe { Process32NextW(snap, &mut entry) }.is_ok();
-    }
-    let _ = unsafe { CloseHandle(snap) };
-    Ok(names)
 }
 
 // ---------- Validation (pure, so it can be tested with fake data)
@@ -292,16 +268,6 @@ mod tests {
 
     fn app(id: &str, can_toggle: bool) -> StartupApp {
         StartupApp { name: id.into(), command: "x.exe".into(), source: "HKCU Run".into(), enabled: true, id: id.into(), can_toggle }
-    }
-
-    #[test]
-    fn gate_blocks_protected_processes() {
-        let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        assert!(gate(&names(&["explorer.exe", "chrome.exe"])).is_ok());
-        assert_eq!(gate(&names(&["explorer.exe", "VALORANT-Win64-Shipping.exe"])), Err(GATE_MESSAGE.to_string()));
-        assert!(gate(&names(&["vgtray.exe", "RiotClientServices.exe"])).is_ok()); // tray and launcher don't block
-        assert!(gate(&names(&["vgc.exe"])).is_err());
-        assert!(gate(&names(&["EasyAntiCheat_EOS.exe"])).is_err());
     }
 
     #[test]
