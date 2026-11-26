@@ -1,6 +1,7 @@
 pub mod drivers;
 pub mod hardware;
 pub mod memory;
+pub mod protected;
 pub mod security;
 pub mod stability;
 pub mod startup;

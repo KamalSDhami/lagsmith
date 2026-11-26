@@ -36,8 +36,11 @@ fn top_apps() -> Result<Vec<AppMemory>, String> {
     let mut entry = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
     let mut more = unsafe { Process32FirstW(snap, &mut entry) }.is_ok();
     while more {
-        if let Some(bytes) = working_set(entry.th32ProcessID) {
-            let g = groups.entry(utf16_to_string(&entry.szExeFile)).or_default();
+        let name = utf16_to_string(&entry.szExeFile);
+        // Never open a handle to a game or anti-cheat process, even query-only (docs/ANTI-CHEAT.md).
+        let bytes = if super::protected::is_protected(&name) { None } else { working_set(entry.th32ProcessID) };
+        if let Some(bytes) = bytes {
+            let g = groups.entry(name).or_default();
             g.0 += 1;
             g.1 += bytes;
         }
