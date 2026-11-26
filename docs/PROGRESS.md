@@ -39,7 +39,7 @@
 
 - **Project:** `D:\Git\projects\system-ready` (app renamed to Lagsmith)
 - **Repository:** https://github.com/KamalSDhami/lagsmith (public, MIT)
-- **Rust build output:** `C:\Users\KamalSDhami\AppData\Local\lagsmith-target` (kept off D:)
+- **Rust build output:** `%LOCALAPPDATA%\lagsmith-target` (kept off D:)
 - **Design:** https://doop.design/c/KQV3ZmmkNI
 - **Docs:** `docs/PRODUCT.md`, `docs/CASE-STUDY.md`, `docs/TICKETS.md`, `docs/references/`
 

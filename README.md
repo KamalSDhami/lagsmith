@@ -1,10 +1,14 @@
 # Lagsmith
 
-Find out why your Windows PC is laggy or crashing, see the evidence, and fix only what you choose. Every change can be undone.
+Find out why your Windows PC is laggy or crashing, and see the evidence.
 
 Lagsmith is for gamers and developers on everyday Windows laptops and desktops. It reads what Windows already records (crash reports, event logs, hardware details and disk usage) and explains it in plain English. It is not a "PC booster": no fake health scores, no RAM cleaners, no registry "optimizers".
 
-> **Status:** early development (v0.1). The current build only reads; it does not change anything on your PC. See [docs/PROGRESS.md](docs/PROGRESS.md).
+> **Status:** early development (v0.1). This build only reads; it changes nothing on your PC. Fixing things, with review and undo, is planned. See [docs/PROGRESS.md](docs/PROGRESS.md).
+
+**Privacy:** everything stays on your PC. Lagsmith has no accounts, analytics or telemetry. Its only network activity is asking Windows Update whether newer drivers exist, a request Windows makes itself.
+
+**Safe with anti-cheat:** Lagsmith never opens, reads or modifies game or anti-cheat processes (Riot Vanguard, EasyAntiCheat, BattlEye, FACEIT) and installs no drivers. See [docs/ANTI-CHEAT.md](docs/ANTI-CHEAT.md).
 
 ## What it does today (read-only)
 
@@ -51,4 +55,6 @@ Lagsmith grew out of a real fix on a ThinkPad T480 that was crashing during Valo
 
 ## License
 
-[MIT](LICENSE)
+[MIT](LICENSE). Third-party components and their licences are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+Lagsmith is an independent project, not affiliated with Microsoft, Riot Games or any game or anti-cheat vendor. Windows is a trademark of Microsoft Corporation.

@@ -29,3 +29,8 @@ src-tauri/.cargo/config.toml
 # Third-party inspiration images and assets with brand logos: kept locally, not redistributed
 docs/references/ref-*
 docs/references/ASSET-desktop-pc.webp
+
+# Test output and local audit report
+test-results/
+playwright-report/
+CONDOM-REPORT.md
