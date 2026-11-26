@@ -11,7 +11,7 @@ Lagsmith is used by people who play games protected by kernel anti-cheat (Riot V
 5. **Disable, remove, delay or "debloat" anti-cheat services or drivers** (`vgc`, `vgk`, EasyAntiCheat, BEService, FACEIT) or their startup entries. Anti-cheat startup entries never appear as "switch off" suggestions.
 6. **Touch game files or anti-cheat folders:** no cleaning, moving or scanning of `C:\Program Files\Riot Vanguard`, `Riot Games`, or any game install or anti-cheat folder.
 7. **Toggle security features anti-cheats depend on:** Memory Integrity (HVCI), VBS, Secure Boot, TPM, test signing, or driver signature enforcement. Lagsmith may explain them; it never changes them.
-8. **Run while a protected game is open, for any active feature.** Read-only scans may run; anything that changes the system waits until the game is closed. Check by process name only.
+8. **Run while a protected game is open, for any active feature.** Read-only scans may run; anything that changes the system waits until the game is closed. Check by process name only. A "game session" means the game itself, or an anti-cheat's in-game component (`vgc.exe`, EasyAntiCheat, BEService, FACEIT service). Always-on tray icons and launchers (`vgtray.exe`, Riot Client) don't block changes, but they stay on the never-touch list (`scan/protected.rs` `is_game_session`).
 
 ## Allowed (these are normal Windows settings, the same ones the Settings app changes)
 

@@ -14,4 +14,10 @@ fn live_scan() {
     println!("startup: {:#?}", super::startup::read());
     println!("memory: {:#?}", super::memory::read());
     println!("security: {:#?}", super::security::read());
+    println!("system: {:#?}", super::system::read());
+    println!("anticheat: {:#?}", super::anticheat::read());
+    println!("crash dumps: {:#?}", super::dumps::list());
+    let t = std::time::Instant::now();
+    println!("disk usage: {:#?} ({:?})", super::diskusage::read(), t.elapsed());
+    println!("store apps: {:#?}", super::storeapps::read());
 }

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-store-apps"
+description = "Enables the get_store_apps command without any pre-configured scope."
+commands.allow = ["get_store_apps"]
+
+[[permission]]
+identifier = "deny-get-store-apps"
+description = "Denies the get_store_apps command without any pre-configured scope."
+commands.deny = ["get_store_apps"]

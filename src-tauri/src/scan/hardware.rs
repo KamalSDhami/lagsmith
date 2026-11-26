@@ -24,6 +24,16 @@ struct ComputerSystem {
 #[serde(rename = "Win32_Processor")]
 struct Processor {
     Name: Option<String>,
+    NumberOfCores: Option<u32>,
+    NumberOfLogicalProcessors: Option<u32>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename = "Win32_BIOS")]
+struct Bios {
+    SMBIOSBIOSVersion: Option<String>,
+    SystemBiosMajorVersion: Option<u32>,
+    SystemBiosMinorVersion: Option<u32>,
 }
 
 #[derive(Deserialize)]
@@ -59,6 +69,7 @@ pub fn read() -> Result<Hardware, String> {
     let sticks: Vec<PhysicalMemory> = wmi.query().map_err(|e| q("memory modules", e))?;
     let arrays: Vec<PhysicalMemoryArray> = wmi.query().map_err(|e| q("memory slots", e))?;
     let video: Vec<VideoController> = wmi.query().map_err(|e| q("graphics adapters", e))?;
+    let bios: Vec<Bios> = wmi.query().map_err(|e| q("the BIOS version", e))?;
 
     let mut installed_kb = 0u64;
     let ram_bytes = match unsafe { GetPhysicallyInstalledSystemMemory(&mut installed_kb) } {
@@ -71,6 +82,10 @@ pub fn read() -> Result<Hardware, String> {
         device: cs.first().map(device_name).unwrap_or_default(),
         os: os_name()?,
         cpu: cpu.first().and_then(|p| p.Name.as_deref()).unwrap_or_default().trim().to_string(),
+        // Sum over sockets.
+        cpu_cores: cpu.iter().filter_map(|p| p.NumberOfCores).sum(),
+        cpu_threads: cpu.iter().filter_map(|p| p.NumberOfLogicalProcessors).sum(),
+        bios_version: bios.first().map(bios_string).unwrap_or_default(),
         ram_bytes,
         ram_sticks: sticks.len() as u32,
         // Use 3 = system memory; other arrays are flash or video memory.
@@ -106,6 +121,18 @@ fn device_name(cs: &ComputerSystem) -> String {
         out = format!("{out} ({code})");
     }
     out
+}
+
+fn bios_string(b: &Bios) -> String {
+    let v = b.SMBIOSBIOSVersion.as_deref().unwrap_or("").trim();
+    // Lenovo already gives "N24ET81W (1.56 )"; tidy the spacing. Others get the version appended.
+    if let Some((code, rest)) = v.split_once('(') {
+        return format!("{} ({})", code.trim(), rest.trim_end_matches(')').trim());
+    }
+    match (b.SystemBiosMajorVersion, b.SystemBiosMinorVersion) {
+        (Some(maj), Some(min)) if maj != 255 && !v.is_empty() => format!("{v} ({maj}.{min:02})"),
+        _ => v.to_string(),
+    }
 }
 
 fn os_name() -> Result<String, String> {
@@ -215,6 +242,14 @@ mod tests {
         assert_eq!(classify("amd radeon rx 6600", "Advanced Micro Devices, Inc.", 0).1, GpuKind::Dedicated);
         assert_eq!(classify("amd radeon(tm) graphics", "Advanced Micro Devices, Inc.", 0).1, GpuKind::Integrated);
         assert_eq!(classify("amd radeon rx vega 10 graphics", "Advanced Micro Devices, Inc.", 0).1, GpuKind::Integrated);
+    }
+
+    #[test]
+    fn bios_version_string() {
+        let b = |v: &str, maj, min| Bios { SMBIOSBIOSVersion: Some(v.into()), SystemBiosMajorVersion: maj, SystemBiosMinorVersion: min };
+        assert_eq!(bios_string(&b("N24ET81W (1.56 )", Some(1), Some(56))), "N24ET81W (1.56)");
+        assert_eq!(bios_string(&b("F12", Some(5), Some(17))), "F12 (5.17)");
+        assert_eq!(bios_string(&b("1.2.3", None, None)), "1.2.3");
     }
 
     #[test]

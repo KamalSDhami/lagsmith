@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window: only Lagsmith's own read-only commands. No core plugins (events, window, path, etc.).",
+  "description": "Main window: only Lagsmith's own commands: read-only scans, plus apply_changes/undo_change, which validate everything in Rust. No core plugins.",
   "windows": ["main"],
   "permissions": [
     "allow-get-hardware",
@@ -11,6 +11,14 @@
     "allow-get-startup",
     "allow-get-memory",
     "allow-get-security",
-    "allow-check-driver-updates"
+    "allow-check-driver-updates",
+    "allow-get-system",
+    "allow-get-anticheat",
+    "allow-list-crash-dumps",
+    "allow-get-disk-usage",
+    "allow-get-store-apps",
+    "allow-get-history",
+    "allow-apply-changes",
+    "allow-undo-change"
   ]
 }

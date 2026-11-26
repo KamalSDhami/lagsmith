@@ -18,9 +18,29 @@ pub fn is_protected(exe: &str) -> bool {
     EXACT.contains(&e.as_str()) || PREFIXES.iter().any(|p| e.starts_with(p)) || e.contains("anticheat")
 }
 
+/// True if `exe` means a protected game session is in progress: the game itself or an anti-cheat's in-game
+/// component. Tray icons and launchers (vgtray.exe, RiotClient*) run all the time and don't count;
+/// they stay on the never-touch list above. Changes are refused while this is true (docs/ANTI-CHEAT.md rule 8).
+pub fn is_game_session(exe: &str) -> bool {
+    let e = exe.to_ascii_lowercase();
+    matches!(e.as_str(),
+        "valorant.exe" | "valorant-win64-shipping.exe" | "vgc.exe" | "league of legends.exe"
+        | "easyanticheat.exe" | "easyanticheat_eos.exe" | "beservice.exe" | "beservice_x64.exe"
+        | "faceitservice.exe" | "gamemon.des" | "gamemon64.des")
+}
+
 #[cfg(test)]
 mod tests {
-    use super::is_protected;
+    use super::{is_game_session, is_protected};
+
+    #[test]
+    fn game_session_ignores_tray_and_launcher() {
+        assert!(is_game_session("VALORANT-Win64-Shipping.exe"));
+        assert!(is_game_session("vgc.exe"));
+        assert!(!is_game_session("vgtray.exe"));
+        assert!(!is_game_session("RiotClientServices.exe"));
+        assert!(is_protected("vgtray.exe")); // still never opened
+    }
 
     #[test]
     fn protects_anti_cheat_and_riot() {

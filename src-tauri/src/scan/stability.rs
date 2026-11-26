@@ -23,7 +23,8 @@ struct Event {
 pub fn read() -> Result<Stability, String> {
     let today = local_today();
     let first = today - (DAYS - 1);
-    let events: Vec<Event> = query_events()?.into_iter().filter(|e| e.local_day >= first && e.local_day <= today).collect();
+    let in_range = |e: &Event| e.local_day >= first && e.local_day <= today;
+    let events: Vec<Event> = query_events("System", SYSTEM_QUERY)?.into_iter().filter(in_range).collect();
 
     let mut days: Vec<DayEvents> = (first..=today)
         .map(|d| {
@@ -64,7 +65,23 @@ pub fn read() -> Result<Stability, String> {
         }
     }
     crashes.sort_by(|a, b| b.time.cmp(&a.time));
-    Ok(Stability { days, crashes, driver_resets })
+    let mut app_crashes: Vec<AppCrash> =
+        query_events("Application", APP_QUERY)?.iter().filter(|e| in_range(e)).filter_map(app_crash).collect();
+    app_crashes.sort_by(|a, b| b.time.cmp(&a.time));
+    app_crashes.truncate(50);
+    Ok(Stability { days, crashes, driver_resets, app_crashes })
+}
+
+/// 1000 names the faulting module; 1002 (hang) has none. Older logs use unnamed param1..param4.
+fn app_crash(e: &Event) -> Option<AppCrash> {
+    let get = |name: &str, fallback: &str| data(e, name).or_else(|| data(e, fallback)).unwrap_or("").trim().to_string();
+    let app = get("AppName", "param1");
+    if app.is_empty() {
+        return None;
+    }
+    let hang = e.id == 1002;
+    let module = if hang { String::new() } else { get("ModuleName", "param4") };
+    Some(AppCrash { time: e.time.clone(), app, module, hang })
 }
 
 fn crash(e: &Event, code: Option<u32>, dump_file: Option<String>) -> Crash {
@@ -147,21 +164,20 @@ fn local_today() -> i64 {
     days_from_civil(now.wYear as i64, now.wMonth as u32, now.wDay as u32)
 }
 
-fn query_events() -> Result<Vec<Event>, String> {
-    // Providers are filtered too, so another source reusing an ID isn't miscounted.
-    // 31 days back covers the oldest local day in any time zone; exact bucketing happens later.
-    let query = wide(&format!(
-        "*[System[(\
-         (Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=41) or \
-         (Provider[@Name='EventLog'] and EventID=6008) or \
-         (Provider[@Name='Microsoft-Windows-WER-SystemErrorReporting'] and EventID=1001) or \
-         (Provider[@Name='Display'] and EventID=4101)) and \
-         TimeCreated[timediff(@SystemTime) <= {}]]]",
-        (DAYS + 1) * 86_400_000
-    ));
-    let channel = wide("System");
-    let results = unsafe { EvtQuery(None, PCWSTR(channel.as_ptr()), PCWSTR(query.as_ptr()), EvtQueryChannelPath.0) }
-        .map_err(|e| format!("Couldn't read the System event log: {e}"))?;
+// Providers are filtered too, so another source reusing an ID isn't miscounted.
+// 31 days back covers the oldest local day in any time zone; exact bucketing happens later.
+const SYSTEM_QUERY: &str = "(Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=41) or \
+     (Provider[@Name='EventLog'] and EventID=6008) or \
+     (Provider[@Name='Microsoft-Windows-WER-SystemErrorReporting'] and EventID=1001) or \
+     (Provider[@Name='Display'] and EventID=4101)";
+const APP_QUERY: &str = "(Provider[@Name='Application Error'] and EventID=1000) or \
+     (Provider[@Name='Application Hang'] and EventID=1002)";
+
+fn query_events(channel: &str, filter: &str) -> Result<Vec<Event>, String> {
+    let query = wide(&format!("*[System[({filter}) and TimeCreated[timediff(@SystemTime) <= {}]]]", (DAYS + 1) * 86_400_000));
+    let channel_w = wide(channel);
+    let fail = |e: windows::core::Error| format!("Couldn't read the {channel} event log: {e}");
+    let results = unsafe { EvtQuery(None, PCWSTR(channel_w.as_ptr()), PCWSTR(query.as_ptr()), EvtQueryChannelPath.0) }.map_err(fail)?;
 
     let mut out = Vec::new();
     let mut err = None;
@@ -170,7 +186,7 @@ fn query_events() -> Result<Vec<Event>, String> {
         let mut returned = 0u32;
         if let Err(e) = unsafe { EvtNext(results, &mut handles, u32::MAX, 0, &mut returned) } {
             if e.code() != ERROR_NO_MORE_ITEMS.to_hresult() {
-                err = Some(format!("Couldn't read the System event log: {e}"));
+                err = Some(fail(e));
             }
             break;
         }
@@ -305,6 +321,18 @@ mod tests {
         // 6008 first, then the 41 carrying BugcheckCode 206 (0xCE): one blue screen from the 41.
         assert_eq!(incidents(vec![sd(1011, 1, None), sd(1000, 0, Some(206))], &[]), vec![Incident::BlueScreen(0, 206)]);
         assert_eq!(meaning(206), meaning(0xCE));
+    }
+
+    #[test]
+    fn app_crash_and_hang_parsing() {
+        let xml = |id: u32, data: &str| format!("<Event><System><EventID>{id}</EventID><TimeCreated SystemTime='2026-11-23T19:10:37.1Z'/></System><EventData>{data}</EventData></Event>");
+        let c = app_crash(&parse_event(&xml(1000, "<Data Name='AppName'>kapy_notes.exe</Data><Data Name='ModuleName'>flutter_windows.dll</Data>")).expect("xml")).expect("crash");
+        assert_eq!((c.app.as_str(), c.module.as_str(), c.hang), ("kapy_notes.exe", "flutter_windows.dll", false));
+        let h = app_crash(&parse_event(&xml(1002, "<Data Name='AppName'>adb.exe</Data><Data Name='ModuleName'>x.dll</Data>")).expect("xml")).expect("hang");
+        assert_eq!((h.app.as_str(), h.module.as_str(), h.hang), ("adb.exe", "", true));
+        let old = app_crash(&parse_event(&xml(1000, "<Data Name='param1'>vgm.exe</Data><Data Name='param4'>unknown</Data>")).expect("xml")).expect("old format");
+        assert_eq!((old.app.as_str(), old.module.as_str()), ("vgm.exe", "unknown"));
+        assert!(app_crash(&parse_event(&xml(1000, "")).expect("xml")).is_none());
     }
 
     #[test]

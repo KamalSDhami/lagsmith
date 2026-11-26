@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-anticheat"
+description = "Enables the get_anticheat command without any pre-configured scope."
+commands.allow = ["get_anticheat"]
+
+[[permission]]
+identifier = "deny-get-anticheat"
+description = "Denies the get_anticheat command without any pre-configured scope."
+commands.deny = ["get_anticheat"]

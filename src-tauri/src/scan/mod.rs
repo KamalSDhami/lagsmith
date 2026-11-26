@@ -1,10 +1,15 @@
+pub mod anticheat;
+pub mod diskusage;
 pub mod drivers;
+pub mod dumps;
 pub mod hardware;
 pub mod memory;
 pub mod protected;
 pub mod security;
 pub mod stability;
 pub mod startup;
+pub mod storeapps;
+pub mod system;
 pub mod storage;
 
 #[cfg(test)]
@@ -33,6 +38,20 @@ pub(crate) fn civil_from_days(z: i64) -> (i64, u32, u32) {
     (if m <= 2 { yoe + era * 400 + 1 } else { yoe + era * 400 }, m, d)
 }
 
+pub(crate) fn rfc3339_from_unix(secs: i64) -> String {
+    let (y, m, d) = civil_from_days(secs.div_euclid(86_400));
+    let t = secs.rem_euclid(86_400);
+    format!("{y:04}-{m:02}-{d:02}T{:02}:{:02}:{:02}Z", t / 3600, t / 60 % 60, t % 60)
+}
+
+pub(crate) fn known_folder(id: &windows::core::GUID) -> Option<std::path::PathBuf> {
+    use windows::Win32::UI::Shell::{KF_FLAG_DEFAULT, SHGetKnownFolderPath};
+    let p = unsafe { SHGetKnownFolderPath(id, KF_FLAG_DEFAULT, None) }.ok()?;
+    let path = unsafe { p.to_string() }.ok().map(std::path::PathBuf::from);
+    unsafe { windows::Win32::System::Com::CoTaskMemFree(Some(p.0 as _)) };
+    path
+}
+
 pub(crate) fn utf16_to_string(buf: &[u16]) -> String {
     let end = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
     String::from_utf16_lossy(&buf[..end])
@@ -51,5 +70,6 @@ mod tests {
         assert_eq!(days_from_civil(1970, 1, 1), 0);
         assert_eq!(civil_from_days(days_from_civil(2026, 11, 25)), (2026, 11, 25));
         assert_eq!(civil_from_days(days_from_civil(2024, 2, 29) + 1), (2024, 3, 1));
+        assert_eq!(rfc3339_from_unix(days_from_civil(2026, 11, 25) * 86_400 + 3661), "2026-11-25T01:01:01Z");
     }
 }

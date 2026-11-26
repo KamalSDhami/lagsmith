@@ -4,22 +4,30 @@ use std::fs;
 use std::os::windows::fs::MetadataExt;
 use std::path::{Path, PathBuf};
 use windows::Win32::Storage::FileSystem::{GetDiskFreeSpaceExW, GetDriveTypeW, GetLogicalDrives, GetLongPathNameW};
-use windows::core::PCWSTR;
+use windows::Win32::UI::Shell::{FOLDERID_LocalAppData, FOLDERID_Profile, FOLDERID_Windows};
+use windows::core::{GUID, PCWSTR};
 
 const DRIVE_FIXED: u32 = 3;
 const FILE_ATTRIBUTE_REPARSE_POINT: u32 = 0x400;
 
-// (id, name, env var, sub path, group)
-const CACHES: [(&str, &str, &str, &str, CacheGroup); 8] = [
-    ("npm", "npm cache", "LOCALAPPDATA", "npm-cache", CacheGroup::DevCache),
-    ("gradle", "Gradle caches", "USERPROFILE", r".gradle\caches", CacheGroup::DevCache),
-    ("uv", "uv package cache", "LOCALAPPDATA", r"uv\cache", CacheGroup::DevCache),
-    ("dart", "Dart analysis server", "LOCALAPPDATA", ".dartServer", CacheGroup::DevCache),
-    ("pip", "pip cache", "LOCALAPPDATA", r"pip\cache", CacheGroup::DevCache),
-    ("cargo", "Cargo registry cache", "USERPROFILE", r".cargo\registry\cache", CacheGroup::DevCache),
-    ("wu", "Windows Update downloads", "WINDIR", r"SoftwareDistribution\Download", CacheGroup::SystemTemp),
-    ("temp", "Your temp folder", "TEMP", "", CacheGroup::SystemTemp),
+// (id, name, known folder, sub path, group). Measuring and cleaning both resolve roots through
+// `cache_root`, from known folders rather than environment variables.
+pub(crate) const CACHES: [(&str, &str, &GUID, &str, CacheGroup); 8] = [
+    ("npm", "npm cache", &FOLDERID_LocalAppData, "npm-cache", CacheGroup::DevCache),
+    ("gradle", "Gradle caches", &FOLDERID_Profile, r".gradle\caches", CacheGroup::DevCache),
+    ("uv", "uv package cache", &FOLDERID_LocalAppData, r"uv\cache", CacheGroup::DevCache),
+    ("dart", "Dart analysis server", &FOLDERID_LocalAppData, ".dartServer", CacheGroup::DevCache),
+    ("pip", "pip cache", &FOLDERID_LocalAppData, r"pip\cache", CacheGroup::DevCache),
+    ("cargo", "Cargo registry cache", &FOLDERID_Profile, r".cargo\registry\cache", CacheGroup::DevCache),
+    ("wu", "Windows Update downloads", &FOLDERID_Windows, r"SoftwareDistribution\Download", CacheGroup::SystemTemp),
+    ("temp", "Your temp folder", &FOLDERID_LocalAppData, "Temp", CacheGroup::SystemTemp),
 ];
+
+/// The allow-listed cache's folder, or None for an id that isn't on the list.
+pub(crate) fn cache_root(id: &str) -> Option<PathBuf> {
+    let (_, _, base, sub, _) = CACHES.iter().find(|c| c.0 == id)?;
+    Some(long_path(&super::known_folder(base)?.join(sub)))
+}
 
 pub fn read() -> Result<Storage, String> {
     Ok(Storage { drives: drives()? })
@@ -52,12 +60,11 @@ fn drives() -> Result<Vec<Drive>, String> {
 }
 
 pub fn caches() -> Result<Vec<CacheItem>, String> {
-    let profile = std::env::var("USERPROFILE").map(|p| long_path(Path::new(&p))).unwrap_or_default();
+    let profile = super::known_folder(&FOLDERID_Profile).map(|p| long_path(&p)).unwrap_or_default();
     let found: Vec<_> = CACHES
         .iter()
-        .filter_map(|&(id, name, var, sub, group)| {
-            let base = std::env::var(var).ok()?;
-            let path = long_path(&Path::new(&base).join(sub));
+        .filter_map(|&(id, name, _, _, group)| {
+            let path = cache_root(id)?;
             // A cache that is itself a junction or symlink points somewhere else; leave it out.
             let meta = fs::symlink_metadata(&path).ok()?;
             (meta.is_dir() && meta.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT == 0)
@@ -84,7 +91,7 @@ pub fn caches() -> Result<Vec<CacheItem>, String> {
 }
 
 /// Expands 8.3 short names (e.g. `KAMALS~1` in %TEMP%) so the profile prefix matches.
-fn long_path(p: &Path) -> PathBuf {
+pub(crate) fn long_path(p: &Path) -> PathBuf {
     let w = wide(&p.to_string_lossy());
     let mut buf = vec![0u16; 1024];
     let n = unsafe { GetLongPathNameW(PCWSTR(w.as_ptr()), Some(&mut buf)) } as usize;
@@ -94,7 +101,7 @@ fn long_path(p: &Path) -> PathBuf {
     PathBuf::from(utf16_to_string(&buf[..n]))
 }
 
-fn display_path(path: &Path, profile: &Path) -> String {
+pub(crate) fn display_path(path: &Path, profile: &Path) -> String {
     let p = path.to_string_lossy().trim_end_matches('\\').to_string();
     let prof = profile.to_string_lossy().trim_end_matches('\\').to_string();
     if !prof.is_empty()
@@ -108,7 +115,7 @@ fn display_path(path: &Path, profile: &Path) -> String {
 }
 
 /// Sums file sizes without ever following reparse points; unreadable entries are skipped.
-fn folder_size(root: &Path) -> u64 {
+pub(crate) fn folder_size(root: &Path) -> u64 {
     let mut total = 0;
     let mut stack = vec![root.to_path_buf()];
     while let Some(dir) = stack.pop() {
