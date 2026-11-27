@@ -112,6 +112,8 @@ export type Commands = {
   get_store_apps: StoreApp[];
   get_gpu_preferences: GpuAppPreference[];
   get_history: ChangeSet[];
+  /** Repair tools already running on this PC ("SFC", "DISM"), by process name. */
+  get_background_repair: string[];
 };
 
 // Commands that take arguments (all validated in Rust).

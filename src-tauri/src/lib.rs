@@ -52,6 +52,12 @@ async fn run_admin_task(task: String, on_event: tauri::ipc::Channel<model::Admin
         .await.map_err(|e| e.to_string())?
 }
 #[tauri::command]
+async fn get_background_repair() -> Result<Vec<String>, String> { blocking(admin::background::background_repair).await }
+// The UI calls this after the user confirms "Close anyway". The helper and sfc.exe are separate
+// processes and keep running; killing a repair half way is worse than letting it finish.
+#[tauri::command]
+fn close_app(app: tauri::AppHandle) { app.exit(0); }
+#[tauri::command]
 async fn undo_change(id: String) -> Result<ChangeSet, String> {
     tauri::async_runtime::spawn_blocking(move || actions::undo_change(id)).await.map_err(|e| e.to_string())?
 }
@@ -71,8 +77,17 @@ pub fn run() {
             get_hardware, get_storage, get_caches, get_stability, get_startup,
             get_memory, get_security, check_driver_updates,
             get_system, get_anticheat, list_crash_dumps, get_disk_usage, get_store_apps, get_gpu_preferences,
-            get_history, apply_changes, undo_change, run_admin_task
+            get_history, apply_changes, undo_change, run_admin_task, get_background_repair, close_app
         ])
+        .on_window_event(|window, event| {
+            // While an admin task runs, closing asks first: the UI shows the prompt.
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if let Some(task) = admin::running_task() {
+                    api.prevent_close();
+                    let _ = tauri::Emitter::emit(window, "close-blocked", task);
+                }
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running Lagsmith");
 }

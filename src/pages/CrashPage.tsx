@@ -13,6 +13,7 @@ import { crashSeverity, localDay, shortCode } from "../lib/derive";
 import { formatSize, formatTime, isoDay } from "../lib/format";
 import { ICON_STROKE } from "./nav";
 import { cn } from "../lib/cn";
+import { waitingLabel } from "../lib/adminLabels";
 
 const DAYS = 30;
 
@@ -245,7 +246,7 @@ export function CrashPage() {
               onClick={() => startAdminTask("analyze-dumps")}
               className="h-7 px-2.5 text-[0.75rem] disabled:opacity-50"
             >
-              {analyzing ? "Analyzing…" : "Analyze dumps"}
+              {analyzing ? "Analyzing…" : (waitingLabel(admin, []) ?? "Analyze dumps")}
             </Button>
           </div>
           {analyzing && (

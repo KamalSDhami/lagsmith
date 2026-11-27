@@ -20,6 +20,8 @@ fn main() {
         "apply_changes",
         "undo_change",
         "run_admin_task",
+        "get_background_repair",
+        "close_app",
     ])))
     .expect("failed to run tauri-build");
 }

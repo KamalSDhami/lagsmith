@@ -1,11 +1,13 @@
 import { Box, History, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { AdminEvent, AdminTask, SfcResult } from "../types";
-import { useSys, type AdminRunResult } from "../lib/useSystemData";
+import { waitingLabel } from "../lib/adminLabels";
+import { useSys, value, type AdminRunResult } from "../lib/useSystemData";
 import { Page } from "../components/Page";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge, type Tone } from "../components/ui/badge";
 import { Progress } from "../components/ui/progress";
+import { BackgroundRepairBanner } from "../components/BackgroundRepairBanner";
 import { Show } from "../components/Show";
 import { formatDate, formatTime } from "../lib/format";
 import { ICON_STROKE } from "./nav";
@@ -80,7 +82,7 @@ const TOOLS: ToolSpec[] = [
 function ToolCard({
   spec,
   isRunning,
-  anyRunning,
+  blockedLabel,
   event,
   latest,
   error,
@@ -88,7 +90,7 @@ function ToolCard({
 }: {
   spec: ToolSpec;
   isRunning: boolean;
-  anyRunning: boolean;
+  blockedLabel: string | null; // set when this card is disabled because something else is running
   event: AdminEvent | null;
   latest: AdminRunResult | undefined;
   error: string | null;
@@ -143,11 +145,11 @@ function ToolCard({
 
         <Button
           variant="primary"
-          disabled={anyRunning}
+          disabled={isRunning || blockedLabel !== null}
           onClick={() => onRun(task)}
           className="w-full active:scale-[0.99]"
         >
-          {isRunning ? runningLabel : runLabel}
+          {isRunning ? runningLabel : (blockedLabel ?? runLabel)}
         </Button>
       </div>
     </Card>
@@ -156,20 +158,31 @@ function ToolCard({
 
 export function RepairPage() {
   const { data, load, admin, startAdminTask } = useSys();
-  const anyRunning = admin.running !== null;
+  const background = admin.running ? [] : (value(data.get_background_repair) ?? []);
+  const waiting = waitingLabel(admin, background);
   const dismRun = admin.results["dism-restorehealth"];
   const dismMeta = dismRun ? outcomeMeta(dismRun.result.outcome) : null;
   const dismExitHex = dismRun ? formatExitHex(dismRun.result.exitCode) : null;
 
   return (
     <Page title="System Repair" subtitle="Check and repair Windows system files, or save a restore point. Requires admin rights.">
+      {background.length > 0 && (
+        <BackgroundRepairBanner
+          tools={background}
+          onRefresh={() => {
+            void load("get_background_repair");
+            void load("get_system");
+          }}
+        />
+      )}
       <div className="grid shrink-0 grid-cols-3 gap-3">
         {TOOLS.map((spec) => (
           <ToolCard
             key={spec.task}
             spec={spec}
             isRunning={admin.running === spec.task}
-            anyRunning={anyRunning}
+            // SFC and DISM also wait for a repair left running in the background; the others only for in-app tasks.
+            blockedLabel={admin.running === spec.task ? null : spec.task === "restore-point" ? waitingLabel(admin, []) : waiting}
             event={admin.running === spec.task ? admin.event : null}
             latest={admin.results[spec.task]}
             error={admin.error?.task === spec.task ? admin.error.message : null}

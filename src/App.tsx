@@ -13,6 +13,7 @@ import { HardwarePage } from "./pages/HardwarePage";
 import { StoragePage } from "./pages/StoragePage";
 import { StartupPage } from "./pages/StartupPage";
 import { GamingPage } from "./pages/GamingPage";
+import { CloseGuard } from "./components/CloseGuard";
 import { RepairPage } from "./pages/RepairPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { DebloatPage } from "./pages/DebloatPage";
@@ -53,6 +54,7 @@ export default function App() {
   return (
     <SysContext.Provider value={sys}>
       <ReviewProvider>
+        <CloseGuard />
         <div className="flex h-full min-w-[1100px]">
           <Sidebar page={page} onNavigate={setPage} osName={osName} />
           <main ref={main} className="min-w-0 flex-1 overflow-y-auto">

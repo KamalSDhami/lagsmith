@@ -178,12 +178,13 @@ test("admin: SFC streams progress across navigation, locks other tasks, refreshe
   const sfcCard = page.getByTestId("admin-card-sfc");
   await expect(sfcCard.getByRole("progressbar", { name: "Check System Files (SFC) progress" })).toBeVisible();
   await expect(sfcCard).toContainText("Verification 45% complete", { timeout: 5000 });
-  await expect(page.getByRole("button", { name: "Run DISM" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Create Restore Point" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Waiting for SFC/ })).toHaveCount(2);
+  await expect(page.getByTestId("admin-card-dism-restorehealth").getByRole("button")).toBeDisabled();
+  await expect(page.getByTestId("admin-card-restore-point").getByRole("button")).toBeDisabled();
 
   // Single-task lock and progress survive navigating to another page and back.
   await nav(page, "Crash Detective");
-  await expect(page.getByRole("button", { name: "Analyze dumps" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Waiting for SFC/ })).toBeDisabled();
   await nav(page, "System Repair");
 
   await expect(sfcCard).toContainText("No problems", { timeout: 5000 });
@@ -443,4 +444,54 @@ test("storage: the move form blocks a drive without enough space", async ({ page
   await form.getByLabel("Folder").fill("C:\\WSL\\Ubuntu");
   await expect(form.getByRole("alert")).toContainText("doesn't have enough free space");
   await expect(form.getByRole("button", { name: "Review move" })).toBeDisabled();
+});
+
+test("admin: busy state names the running task and its progress on the other buttons", async ({ page }) => {
+  await open(page, "", 350);
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Run SFC" }).click();
+  await expect(page.getByTestId("admin-card-sfc")).toContainText("Verification 45% complete", { timeout: 5000 });
+  await expect(page.getByTestId("admin-card-dism-restorehealth").getByRole("button")).toHaveText(/Waiting for SFC \(\d+%\)/);
+  await expect(page.getByTestId("admin-card-restore-point").getByRole("button")).toHaveText(/Waiting for SFC/);
+  await expect(page.getByTestId("admin-card-sfc").getByRole("button")).toHaveText("Running SFC…");
+});
+
+test("admin: a repair left running in the background shows a banner and locks SFC and DISM", async ({ page }) => {
+  await open(page, "fixture=backgroundSfc");
+  await nav(page, "System Repair");
+  const banner = page.getByTestId("background-repair");
+  await expect(banner).toContainText("A repair is still running in the background (SFC). Results appear here when it finishes.");
+  await expect(page.getByTestId("admin-card-sfc").getByRole("button")).toHaveText("Waiting for SFC");
+  await expect(page.getByTestId("admin-card-sfc").getByRole("button")).toBeDisabled();
+  await expect(page.getByTestId("admin-card-dism-restorehealth").getByRole("button")).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Create Restore Point" })).toBeEnabled();
+  await expectFits(page);
+});
+
+test("admin: Refresh clears the background banner once the repair has finished", async ({ page }) => {
+  await open(page, "fixture=backgroundDone");
+  await nav(page, "System Repair");
+  const banner = page.getByTestId("background-repair");
+  await expect(banner).toBeVisible();
+  await banner.getByRole("button", { name: "Refresh" }).click();
+  await expect(banner).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Run SFC" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Run DISM" })).toBeEnabled();
+});
+
+test("admin: closing while a task runs asks first; Keep open stays, Close anyway closes", async ({ page }) => {
+  await open(page, "", 350);
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Run SFC" }).click();
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("lagsmith:close-blocked", { detail: "SFC" })));
+  const dlg = page.getByRole("dialog", { name: "Repair still running" });
+  await expect(dlg).toContainText("SFC is still running");
+  await expect(dlg).toContainText("keeps running in the background");
+  await dlg.getByRole("button", { name: "Keep Lagsmith open" }).click();
+  await expect(dlg).toBeHidden();
+  expect(await page.evaluate(() => (window as unknown as { __lagsmithClosed?: boolean }).__lagsmithClosed)).toBeFalsy();
+
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent("lagsmith:close-blocked", { detail: "SFC" })));
+  await dlg.getByRole("button", { name: "Close anyway" }).click();
+  expect(await page.evaluate(() => (window as unknown as { __lagsmithClosed?: boolean }).__lagsmithClosed)).toBe(true);
 });

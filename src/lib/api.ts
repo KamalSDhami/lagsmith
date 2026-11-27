@@ -41,6 +41,23 @@ export async function runAdminTask(task: AdminTask, onEvent: (e: AdminEvent) => 
   throw new Error("Not running inside the app.");
 }
 
+/** Fires when the window's close button was pressed while an admin task runs (Rust blocked the close). */
+export async function onCloseBlocked(cb: (task: string) => void): Promise<() => void> {
+  if (inTauri) {
+    const { listen } = await import("@tauri-apps/api/event");
+    return listen<string>("close-blocked", (e) => cb(e.payload));
+  }
+  const h = (e: Event) => cb(String((e as CustomEvent).detail));
+  window.addEventListener("lagsmith:close-blocked", h);
+  return () => window.removeEventListener("lagsmith:close-blocked", h);
+}
+
+/** Close the app for real. Any running repair keeps going in its own process. */
+export async function closeApp(): Promise<void> {
+  if (inTauri) return invoke("close_app");
+  (window as unknown as { __lagsmithClosed?: boolean }).__lagsmithClosed = true;
+}
+
 export function errorMessage(e: unknown): string {
   if (e instanceof Error) return e.message;
   if (typeof e === "string") return e;

@@ -28,6 +28,7 @@ const ALL: Cmd[] = [
   "get_store_apps",
   "get_gpu_preferences",
   "get_history",
+  "get_background_repair",
 ];
 
 /** Loaded when the app opens: what the dashboard needs, plus the one-off driver check. */
@@ -41,6 +42,7 @@ const ON_START: Cmd[] = [
   "get_anticheat",
   "get_gpu_preferences",
   "check_driver_updates",
+  "get_background_repair",
 ];
 
 export interface ScanStep {
@@ -190,6 +192,17 @@ export function useSystemData() {
   useEffect(() => {
     ON_START.forEach((c) => void load(c));
   }, [load]);
+
+  // A repair left running by an earlier session: look again until it ends, then refresh the SFC result.
+  const background = (value(state.get_background_repair) ?? []).length > 0;
+  const wasBackground = useRef(false);
+  useEffect(() => {
+    if (wasBackground.current && !background) void load("get_system");
+    wasBackground.current = background;
+    if (!background) return;
+    const t = setInterval(() => void load("get_background_repair"), 5000);
+    return () => clearInterval(t);
+  }, [background, load]);
 
   return { data: state, load, ensure, scan, runScan, cancelScan, admin, startAdminTask };
 }

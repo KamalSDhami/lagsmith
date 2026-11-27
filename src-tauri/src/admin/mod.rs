@@ -1,13 +1,14 @@
 //! App side of the elevated helper: a private named pipe, a `runas` launch of lagsmith-helper.exe
 //! from the app's own folder, and a reader that forwards progress lines to the UI.
 
+pub mod background;
 pub mod protocol;
 
 use crate::model::{AdminEvent, AdminResult};
 use crate::scan::{protected, wide};
 use protocol::{EXIT_BAD_ARGS, EXIT_GAME_RUNNING, EXIT_PIPE_REFUSED, EXIT_SYSTEM_DLL, HelperMessage, valid_action};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Mutex;
 use windows::Win32::Foundation::{
     CloseHandle, ERROR_BROKEN_PIPE, ERROR_CANCELLED, ERROR_IO_PENDING, ERROR_PIPE_CONNECTED, HANDLE, HLOCAL, LocalFree,
     WAIT_OBJECT_0,
@@ -27,19 +28,38 @@ use windows::core::{PCWSTR, PWSTR};
 
 const MAX_OUTPUT: usize = 4 << 20; // the helper's messages are small; stop reading past this
 
-static BUSY: AtomicBool = AtomicBool::new(false);
+/// The app-started admin task that is running now, by display name. One at a time: the helper and the
+/// tools it drives (sfc.exe, DISM) don't share well. Dropping `Busy` releases it on every exit path.
+static RUNNING: Mutex<Option<&'static str>> = Mutex::new(None);
+
+fn task_label(task: &str) -> &'static str {
+    match task {
+        "sfc" => "SFC",
+        "dism-restorehealth" => "DISM",
+        "restore-point" => "Restore point creation",
+        _ => "Crash dump analysis",
+    }
+}
+
+/// Name of the admin task Lagsmith is running now, if any (the close prompt uses it).
+pub fn running_task() -> Option<&'static str> {
+    *RUNNING.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 struct Busy;
 impl Busy {
-    fn acquire() -> Result<Busy, String> {
-        BUSY.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
-            .map(|_| Busy)
-            .map_err(|_| "Another admin task is still running".to_string())
+    fn acquire(task: &str) -> Result<Busy, String> {
+        let mut g = RUNNING.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(t) = *g {
+            return Err(format!("{t} is still running. Wait for it to finish (progress is on the System Repair page), then try again."));
+        }
+        *g = Some(task_label(task));
+        Ok(Busy)
     }
 }
 impl Drop for Busy {
     fn drop(&mut self) {
-        BUSY.store(false, Ordering::SeqCst);
+        *RUNNING.lock().unwrap_or_else(|e| e.into_inner()) = None;
     }
 }
 
@@ -54,8 +74,12 @@ pub fn run_admin_task(task: &str, on_event: impl Fn(AdminEvent)) -> Result<Admin
     if !valid_action(task) {
         return Err("Unknown admin task".into());
     }
-    protected::gate(&protected::process_names()?)?;
-    let _busy = Busy::acquire()?;
+    let names = protected::process_names()?;
+    protected::gate(&names)?;
+    let _busy = Busy::acquire(task)?;
+    if let Some(msg) = background::conflict(task, &names) {
+        return Err(msg);
+    }
     let helper = helper_path()?;
     let (name, pipe) = create_pipe()?;
     let process = launch(&helper, task, &name)?;
@@ -331,6 +355,57 @@ mod tests {
         assert!(exit_message(Some(EXIT_PIPE_REFUSED)).contains("confirm"));
         assert!(exit_message(Some(EXIT_SYSTEM_DLL)).contains("dbgeng.dll"));
         assert!(exit_message(Some(1)).contains("code 1"));
+    }
+
+    #[test]
+    fn closed_pipe_without_a_result_is_an_error_not_a_hang() {
+        let (name, pipe) = create_pipe().expect("pipe");
+        let process = fake_process(false);
+        let client = std::thread::spawn(move || {
+            let w = wide(&name);
+            let h = loop {
+                let r = unsafe {
+                    CreateFileW(PCWSTR(w.as_ptr()), FILE_GENERIC_WRITE.0, FILE_SHARE_NONE, None, OPEN_EXISTING, SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION, None)
+                };
+                if let Ok(h) = r {
+                    break Handle(h);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            };
+            let line = "{\"type\":\"progress\",\"stage\":\"Verification 84% complete\",\"percent\":84.0}
+";
+            unsafe { WriteFile(h.0, Some(line.as_bytes()), None, None) }.expect("write");
+            // helper dies here: the pipe handle closes, then the process handle signals
+        });
+        let done = std::thread::spawn({
+            let p = process.0.0 as isize;
+            move || {
+                let _ = client.join();
+                unsafe { SetEvent(HANDLE(p as _)) }.expect("set");
+            }
+        });
+        let err = serve(&pipe, &process, None, |_| {}).expect_err("no result");
+        let _ = done.join();
+        assert!(err.contains("stopped unexpectedly"), "{err}");
+    }
+
+    #[test]
+    fn busy_guard_names_the_running_task_and_always_releases() {
+        assert_eq!(running_task(), None);
+        let guard = Busy::acquire("sfc").expect("free");
+        assert_eq!(running_task(), Some("SFC"));
+        let err = Busy::acquire("dism-restorehealth").err().expect("busy");
+        assert!(err.starts_with("SFC is still running"), "{err}");
+        assert!(err.contains("System Repair"), "{err}");
+        drop(guard);
+        assert_eq!(running_task(), None);
+        // released on an early error return too
+        let r: Result<(), String> = (|| {
+            let _b = Busy::acquire("dism-restorehealth")?;
+            Err("boom".into())
+        })();
+        assert!(r.is_err());
+        drop(Busy::acquire("restore-point").expect("free again"));
     }
 
     #[test]

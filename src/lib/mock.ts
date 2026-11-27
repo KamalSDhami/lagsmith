@@ -188,12 +188,20 @@ function base(): Commands {
       },
     ],
     get_history: [],
+    get_background_repair: [],
   };
 }
 
 type Fixture = (d: Commands) => void;
 
 const FIXTURES: Record<string, Fixture> = {
+  // An SFC left running by an earlier session. "backgroundDone" finishes it after the first look.
+  backgroundSfc: (d) => {
+    d.get_background_repair = ["SFC"];
+  },
+  backgroundDone: (d) => {
+    d.get_background_repair = ["SFC"];
+  },
   // Adds the MX150 variant of the T480. Sample data.
   dualgpu: (d) => {
     d.get_hardware.gpus.push({
@@ -333,7 +341,11 @@ function later<T>(cmd: string, work: () => T): Promise<T> {
 }
 
 export function mockCall<K extends keyof Commands>(cmd: K): Promise<Commands[K]> {
-  return later(cmd, () => structuredClone(db()[cmd]));
+  return later(cmd, () => {
+    const out = structuredClone(db()[cmd]);
+    if (cmd === "get_background_repair" && params().getAll("fixture").includes("backgroundDone")) db().get_background_repair = [];
+    return out;
+  });
 }
 
 // ---- Actions (phase 2): applied in memory, recorded in history ----
