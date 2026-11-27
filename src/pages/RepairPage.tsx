@@ -1,4 +1,4 @@
-import { Box, History, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Box, History, Shield, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { AdminEvent, AdminTask, SfcResult } from "../types";
 import { waitingLabel } from "../lib/adminLabels";
 import { useSys, value, type AdminRunResult } from "../lib/useSystemData";
@@ -143,12 +143,14 @@ function ToolCard({
           </div>
         )}
 
+        {/* One filled button (SFC, the first step); the others are outline so the order is clear. */}
         <Button
-          variant="primary"
+          variant={task === "sfc" ? "primary" : "outline"}
           disabled={isRunning || blockedLabel !== null}
           onClick={() => onRun(task)}
-          className="w-full active:scale-[0.99]"
+          className="w-full active:scale-[0.99] disabled:opacity-60"
         >
+          <Shield size={16} strokeWidth={ICON_STROKE} aria-hidden />
           {isRunning ? runningLabel : (blockedLabel ?? runLabel)}
         </Button>
       </div>
@@ -165,7 +167,10 @@ export function RepairPage() {
   const dismExitHex = dismRun ? formatExitHex(dismRun.result.exitCode) : null;
 
   return (
-    <Page title="System Repair" subtitle="Check and repair Windows system files, or save a restore point. Requires admin rights.">
+    <Page
+      title="System Repair"
+      subtitle="Start with SFC. If it can't repair files, run DISM, then SFC again. Windows asks for admin permission first."
+    >
       {background.length > 0 && (
         <BackgroundRepairBanner
           tools={background}
@@ -175,7 +180,7 @@ export function RepairPage() {
           }}
         />
       )}
-      <div className="grid shrink-0 grid-cols-3 gap-3">
+      <div className="grid shrink-0 grid-cols-3 gap-4">
         {TOOLS.map((spec) => (
           <ToolCard
             key={spec.task}
@@ -190,9 +195,9 @@ export function RepairPage() {
           />
         ))}
       </div>
-      <Card className="mt-3 p-5">
+      <Card className="p-4">
         <h2 className="text-[1rem] font-semibold">Last results</h2>
-        <div className="mt-3 grid grid-cols-2 gap-6">
+        <div className="mt-2 grid grid-cols-2 gap-6">
           <section aria-label="Last SFC result">
             <h3 className="text-[0.875rem] font-medium">System File Checker</h3>
             <Show load={data.get_system} what="the last SFC result" onRetry={() => load("get_system")}>
@@ -230,9 +235,7 @@ export function RepairPage() {
                 </p>
               </div>
             ) : (
-              <p className="mt-1.5 text-[0.875rem] text-muted">
-                Lagsmith can't read past DISM results yet. They'll appear here after you run DISM from Lagsmith.
-              </p>
+              <p className="mt-1.5 text-[0.875rem] text-muted">No DISM run in this session.</p>
             )}
           </section>
         </div>

@@ -5,10 +5,12 @@ import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Show } from "../components/Show";
 import { useReview } from "../components/Review";
+import { useNav } from "../lib/navContext";
 
 export function DebloatPage() {
   const { data, load } = useSys();
   const review = useReview();
+  const { go } = useNav();
 
   const remove = (a: StoreApp) =>
     review({
@@ -19,13 +21,20 @@ export function DebloatPage() {
     });
 
   return (
-    <Page title="Debloat" subtitle="Leftover Microsoft Store apps. Removing one can't be undone, but you can reinstall it from the Microsoft Store.">
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+    <Page title="Debloat" subtitle="Leftover Microsoft Store apps you can remove.">
+      <p className="text-[0.875rem] text-muted">Removing an app can't be undone in Lagsmith. You can reinstall it from the Microsoft Store.</p>
+      {/* The card hugs its rows: two apps should not sit in a viewport-tall box. */}
+      <Card className="flex max-h-full min-h-0 flex-col self-stretch">
+        <div className="min-h-0 overflow-y-auto">
           <Show load={data.get_store_apps} what="Store apps" onRetry={() => load("get_store_apps")}>
             {(apps) =>
               apps.length === 0 ? (
-                <Empty>No removable Store apps found.</Empty>
+                <div>
+                  <Empty>No removable Store apps found.</Empty>
+                  <button onClick={() => go("storage")} className="mx-4 mb-4 font-medium text-accent hover:underline">
+                    Free space in Storage Cleaner
+                  </button>
+                </div>
               ) : (
                 <ul className="divide-y divide-line" aria-label="Store apps">
                   {apps.map((a) => (
@@ -39,7 +48,13 @@ export function DebloatPage() {
                           {a.publisher}
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => remove(a)} aria-label={`Remove ${a.name}`}>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => remove(a)}
+                        aria-label={`Remove ${a.name}`}
+                        className="border-danger/40 text-danger hover:bg-danger-soft"
+                      >
                         Remove
                       </Button>
                     </li>

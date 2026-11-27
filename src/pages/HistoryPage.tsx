@@ -11,6 +11,7 @@ import { Dialog } from "../components/ui/dialog";
 import { Show } from "../components/Show";
 import { SetItems, canUndo, freedTotal, movesWsl, useRefreshAfterChange } from "../components/Review";
 import { formatGB, formatTime, plural } from "../lib/format";
+import { useNav } from "../lib/navContext";
 import { ICON_STROKE } from "./nav";
 import { cn } from "../lib/cn";
 
@@ -20,20 +21,29 @@ function SetRow({ set, onUndo }: { set: ChangeSet; onUndo: (s: ChangeSet) => voi
   const done = set.items.filter((i) => i.status === "done").length;
   return (
     <li data-testid={`set-${set.id}`}>
-      <div className="flex items-center gap-3 px-5 py-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-success-soft text-success">
-          <CircleCheck size={18} strokeWidth={ICON_STROKE} aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="truncate text-[0.9375rem] font-medium">{set.title}</h2>
-            {set.undone && <Badge tone="neutral">Undone</Badge>}
-          </div>
-          <div className="text-[0.8125rem] text-muted">
-            {formatTime(set.time)} · {plural(done, "change", "changes")}
-            {freed > 0 ? ` · ${formatGB(freed)} freed` : ""}
-          </div>
-        </div>
+      <div className="flex items-center gap-3 px-5 py-2">
+        {/* The whole left side is the expand button, not just the chevron. */}
+        <button
+          onClick={() => setOpen((o) => !o)}
+          aria-expanded={open}
+          aria-label={`${open ? "Hide" : "Show"} details for ${set.title}`}
+          className="-ml-2 flex min-h-12 min-w-0 flex-1 items-center gap-3 rounded-lg px-2 text-left hover:bg-subtle"
+        >
+          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-success-soft text-success">
+            <CircleCheck size={18} strokeWidth={ICON_STROKE} aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-2">
+              <span className="truncate text-[0.9375rem] font-medium">{set.title}</span>
+              {set.undone && <Badge tone="neutral">Undone</Badge>}
+            </span>
+            <span className="block text-[0.8125rem] text-muted">
+              {formatTime(set.time)} · {plural(done, "change", "changes")}
+              {freed > 0 ? ` · ${formatGB(freed)} freed` : ""}
+            </span>
+          </span>
+          <ChevronDown size={17} strokeWidth={ICON_STROKE} aria-hidden className={cn("shrink-0 transition-transform", open && "rotate-180")} />
+        </button>
         <Button
           variant="outline"
           size="sm"
@@ -44,14 +54,6 @@ function SetRow({ set, onUndo }: { set: ChangeSet; onUndo: (s: ChangeSet) => voi
           <Undo2 size={15} strokeWidth={ICON_STROKE} aria-hidden />
           Undo
         </Button>
-        <button
-          onClick={() => setOpen((o) => !o)}
-          aria-expanded={open}
-          aria-label={`${open ? "Hide" : "Show"} details for ${set.title}`}
-          className="grid size-8 place-items-center rounded-lg hover:bg-subtle"
-        >
-          <ChevronDown size={17} strokeWidth={ICON_STROKE} aria-hidden className={cn("transition-transform", open && "rotate-180")} />
-        </button>
       </div>
       {open && (
         <div className="border-t border-line bg-[#fafafb] px-5 py-1">
@@ -64,6 +66,7 @@ function SetRow({ set, onUndo }: { set: ChangeSet; onUndo: (s: ChangeSet) => voi
 
 export function HistoryPage() {
   const { data, load } = useSys();
+  const { go } = useNav();
   const refresh = useRefreshAfterChange();
   const [confirm, setConfirm] = useState<ChangeSet | null>(null);
   const [busy, setBusy] = useState(false);
@@ -85,21 +88,34 @@ export function HistoryPage() {
     }
   };
 
+  const totalFreed = (data.get_history.data ?? []).filter((x) => !x.undone).reduce((n, x) => n + freedTotal(x), 0);
   const wslNote = !!confirm?.items.some((i) => (i.undo as { kind?: string } | null)?.kind === "wslMove");
   const undoable = confirm ? confirm.items.filter((i) => i.status === "done" && i.undo != null).length : 0;
 
   return (
-    <Page title="History & Undo" subtitle="Every change Lagsmith makes is listed here and can be undone where Windows allows it.">
-      <Card className="flex min-h-0 flex-1 flex-col">
-        <div className="min-h-0 flex-1 overflow-y-auto">
+    <Page
+      title="History & Undo"
+      subtitle="Every change Lagsmith makes is listed here and can be undone where Windows allows it."
+      aside={
+        totalFreed > 0 && (
+          <div className="text-right">
+            <div className="text-[1.625rem] leading-tight font-semibold tabular-nums">{formatGB(totalFreed)}</div>
+            <div className="text-[0.8125rem] text-muted">Freed in total</div>
+          </div>
+        )
+      }
+    >
+      <Card className="flex max-h-full min-h-0 flex-col">
+        <div className="min-h-0 overflow-y-auto">
           <Show load={data.get_history} what="history" onRetry={() => load("get_history")}>
             {(sets) =>
               sets.length === 0 ? (
-                <div className="grid h-full place-items-center p-10 text-center">
-                  <div>
-                    <CircleCheck size={28} strokeWidth={ICON_STROKE} className="mx-auto text-muted" aria-hidden />
-                    <p className="mt-2 text-[0.9375rem]">No changes yet. Lagsmith hasn't changed anything on this PC.</p>
-                  </div>
+                <div className="p-8 text-center">
+                  <CircleCheck size={28} strokeWidth={ICON_STROKE} className="mx-auto text-muted" aria-hidden />
+                  <p className="mt-2 text-[0.9375rem]">No changes yet. Lagsmith hasn't changed anything on this PC.</p>
+                  <Button variant="outline" className="mt-3" onClick={() => go("storage")}>
+                    Free space in Storage Cleaner
+                  </Button>
                 </div>
               ) : (
                 <ul className="divide-y divide-line" aria-label="Change history">
@@ -131,7 +147,7 @@ export function HistoryPage() {
                 Cancel
               </Button>
               <Button onClick={doUndo} disabled={busy}>
-                {busy ? "Undoing…" : "Undo changes"}
+                {busy ? "Undoing…" : `Undo ${plural(undoable, "change", "changes")}`}
               </Button>
             </div>
           </div>

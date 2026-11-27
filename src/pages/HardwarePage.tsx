@@ -3,6 +3,8 @@ import { Battery, Cpu, HardDrive, MemoryStick, Monitor, MonitorCog, type LucideI
 import type { Gpu } from "../types";
 import { useSys, type Cmd } from "../lib/useSystemData";
 import { Page } from "../components/Page";
+import { Button } from "../components/ui/button";
+import { useNav } from "../lib/navContext";
 import { Card } from "../components/ui/card";
 import { Progress } from "../components/ui/progress";
 import { Show } from "../components/Show";
@@ -15,6 +17,7 @@ import { ICON_STROKE } from "./nav";
 function HwCard({
   icon: Icon,
   title,
+  focusId,
   load,
   what,
   cmd,
@@ -22,6 +25,7 @@ function HwCard({
 }: {
   icon: LucideIcon;
   title: string;
+  focusId?: string;
   load: { status: string };
   what: string;
   cmd: Cmd;
@@ -29,7 +33,7 @@ function HwCard({
 }) {
   const { load: reload } = useSys();
   return (
-    <Card className="p-4">
+    <Card className="p-4" data-focus-id={focusId}>
       <div className="flex items-center gap-2.5">
         <span className="grid size-8 place-items-center rounded-lg bg-tile text-tile-ink">
           <Icon size={17} strokeWidth={ICON_STROKE} aria-hidden />
@@ -84,6 +88,7 @@ function shortCpu(name: string) {
 
 export function HardwarePage() {
   const { data, load } = useSys();
+  const { go } = useNav();
   const hw = data.get_hardware;
   const st = data.get_storage;
   const sy = data.get_system;
@@ -94,8 +99,8 @@ export function HardwarePage() {
   const p = sys?.power;
 
   return (
-    <Page title="Hardware Overview" subtitle="Your system details, read from Windows.">
-      <div className="grid shrink-0 grid-cols-3 gap-3">
+    <Page title="Hardware" subtitle="Your system details, read from Windows.">
+      <div className="grid shrink-0 grid-cols-3 gap-4">
         <HwCard icon={Cpu} title="CPU" load={hw} what="hardware info" cmd="get_hardware">
           {h && (
             <>
@@ -141,7 +146,7 @@ export function HardwarePage() {
                 return (
                   <li key={d.letter}>
                     <div className="flex justify-between text-[0.875rem]">
-                      <span className="font-medium">
+                      <span className="font-medium whitespace-nowrap">
                         {d.letter} {formatGB(d.totalBytes)}
                       </span>
                       <span className="text-muted">
@@ -157,7 +162,7 @@ export function HardwarePage() {
             </ul>
           )}
         </HwCard>
-        <HwCard icon={Battery} title="Battery" load={sy} what="power info" cmd="get_system">
+        <HwCard icon={Battery} title="Battery" focusId="battery" load={sy} what="power info" cmd="get_system">
           {p &&
             (() => {
               const state = p.onBattery ? "On battery" : "Plugged in";
@@ -198,21 +203,23 @@ export function HardwarePage() {
         </HwCard>
       </div>
 
-      <div className="mt-3 grid min-h-0 flex-1 grid-cols-3 gap-3">
-        <Card className="p-4">
+      <div className="grid min-h-0 flex-1 grid-cols-3 items-start gap-4">
+        <Card className="p-4" data-focus-id="ram-tip">
           <h2 className="text-[0.9375rem] font-semibold">Memory upgrade tip</h2>
           {h ? (
             needsRamUpgradeTip(h) ? (
+              <>
               <div className="mt-2 flex gap-3">
-                <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-tile text-tile-ink">
-                  <MemoryStick size={24} strokeWidth={ICON_STROKE} aria-hidden />
-                </span>
                 <p className="text-[0.875rem] leading-relaxed text-muted">
                   You're using a single {formatRam(h.ramBytes)} stick
                   {h.ramSlots > h.ramSticks ? ` with ${plural(h.ramSlots - h.ramSticks, "slot", "slots")} free` : ""}. Adding a matching stick
                   enables dual channel, which gives your integrated graphics more memory bandwidth.
                 </p>
               </div>
+              <Button variant="outline" size="sm" className="mt-3" onClick={() => go("memory", undefined, "hardware")}>
+                See memory details
+              </Button>
+              </>
             ) : (
               <p className="mt-2 text-[0.875rem] text-muted">
                 {h.ramSticks === 0
@@ -247,7 +254,7 @@ export function HardwarePage() {
           </Show>
         </Card>
 
-        <Card className="flex min-h-0 flex-col">
+        <Card className="flex max-h-full min-h-0 flex-col">
           <h2 className="px-4 pt-4 pb-1 text-[0.9375rem] font-semibold">Graphics adapters</h2>
           <div className="min-h-0 flex-1 overflow-y-auto">
             <Show load={hw} what="graphics adapters" onRetry={() => load("get_hardware")}>

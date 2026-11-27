@@ -17,12 +17,14 @@ import { formatGB } from "../lib/format";
 import { systemDrive } from "../lib/derive";
 import { isProtected, PROTECTED_REASON } from "../lib/protected";
 import { ICON_STROKE } from "./nav";
+import { cn } from "../lib/cn";
 
-type Tab = "all" | "dev" | "system" | "move" | "files";
+/** Three groups: what Lagsmith cleans, what it can move, and what is yours (shown for information only). */
+type Tab = "clean" | "move" | "files";
 
 interface Row {
   key: string;
-  tab: Exclude<Tab, "all">;
+  tab: "dev" | "system" | "move" | "files";
   name: string;
   path: string;
   bytes: number;
@@ -33,10 +35,10 @@ interface Row {
   locked?: string;
 }
 
-const TAB_NOTE: Record<Exclude<Tab, "all">, string> = {
+const TAB_NOTE: Record<Row["tab"], string> = {
   dev: "Developer cache (safe, refills itself)",
   system: "Temporary files",
-  move: "Move to another drive",
+  move: "Can be moved to another drive",
   files: "Your files: never cleaned automatically",
 };
 
@@ -67,6 +69,7 @@ function usageRows(u: DiskUsage): Row[] {
 }
 
 const sum = (xs: { bytes: number }[]) => xs.reduce((n, x) => n + x.bytes, 0);
+const inTab = (r: Row, t: Tab) => (t === "clean" ? r.tab === "dev" || r.tab === "system" : r.tab === t);
 
 /** Asks where to move a WSL distro, then hands off to the review sheet. Rust re-checks every rule. */
 function MoveDialog({
@@ -147,51 +150,65 @@ function MoveDialog({
   );
 }
 
+const SEGMENTS: { label: string; key: keyof DiskUsage; color: string }[] = [
+  { label: "Installed programs", key: "programs", color: "#5b58dc" },
+  { label: "WSL disks", key: "wslDisks", color: "#8f8dea" },
+  { label: "App data", key: "appData", color: "#c2c0f2" },
+  { label: "Your folders", key: "userFolders", color: "#8e8e98" },
+];
+
+/** One stacked bar of the measured folders against the drive's used space, then a legend with the biggest item of each. */
 function FillingCard() {
   const { data, load } = useSys();
   const du = data.get_disk_usage;
-  const groups: [string, keyof DiskUsage][] = [
-    ["Installed programs", "programs"],
-    ["WSL disks", "wslDisks"],
-    ["App data", "appData"],
-    ["Your folders", "userFolders"],
-  ];
   const drive = data.get_storage.status === "ok" ? systemDrive(data.get_storage.data.drives) : undefined;
+  const used = drive ? drive.totalBytes - drive.freeBytes : 0;
   return (
     <Card className="flex min-h-0 flex-col">
-      <h2 className="px-4 pt-3.5 pb-1 text-[0.9375rem] font-semibold">What's filling {drive?.letter ?? "C:"}</h2>
-      <div className="min-h-0 flex-1 overflow-y-auto pb-2">
+      <h2 className="px-4 pt-3.5 pb-2 text-[0.9375rem] font-semibold">What's filling {drive?.letter ?? "C:"}</h2>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-3">
         {du.status === "error" ? (
           <InlineError what="disk usage" onRetry={() => load("get_disk_usage")} />
         ) : du.data === undefined ? (
-          <div role="status" className="px-4 py-2">
+          <div role="status">
             <p className="text-[0.8125rem] text-muted">Measuring folders. This can take a minute.</p>
             <LoadingRows rows={4} />
           </div>
         ) : (
-          groups.map(([label, k]) => {
-            const items = [...du.data![k]].sort((a, b) => b.bytes - a.bytes);
+          (() => {
+            const d = du.data!;
+            const measured = SEGMENTS.reduce((n, g) => n + sum(d[g.key]), 0);
+            const whole = Math.max(used, measured) || 1;
             return (
-              <section key={k} className="px-4 pt-2">
-                <div className="flex justify-between text-[0.8125rem] font-medium">
-                  <span>{label}</span>
-                  <span className="tabular-nums">{formatGB(sum(items))}</span>
+              <>
+                <div role="img" aria-label="Measured folders against used space" className="flex h-3 overflow-hidden rounded-full bg-subtle">
+                  {SEGMENTS.map((g) => (
+                    <span key={g.key} style={{ width: `${(sum(d[g.key]) / whole) * 100}%`, background: g.color }} />
+                  ))}
                 </div>
-                {items.length === 0 ? (
-                  <p className="text-[0.8125rem] text-muted">None found</p>
-                ) : (
-                  <ul>
-                    {items.slice(0, 3).map((i) => (
-                      <li key={i.name} className="flex justify-between gap-2 text-[0.8125rem] text-muted" title={i.displayPath}>
-                        <span className="truncate">{i.name}</span>
-                        <span className="shrink-0 tabular-nums">{formatGB(i.bytes)}</span>
+                <ul className="mt-3 space-y-2.5">
+                  {SEGMENTS.map((g) => {
+                    const top = [...d[g.key]].sort((a, b) => b.bytes - a.bytes)[0];
+                    return (
+                      <li key={g.key}>
+                        <div className="flex items-center justify-between gap-2 text-[0.8125rem] font-medium">
+                          <span className="flex items-center gap-2">
+                            <span aria-hidden className="size-2.5 rounded-full" style={{ background: g.color }} />
+                            {g.label}
+                          </span>
+                          <span className="tabular-nums">{formatGB(sum(d[g.key]))}</span>
+                        </div>
+                        <p className="truncate pl-[1.125rem] text-[0.75rem] text-muted" title={top?.displayPath}>
+                          {top ? `Largest: ${top.name}, ${formatGB(top.bytes)}` : "None found"}
+                        </p>
                       </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
+                    );
+                  })}
+                </ul>
+                <p className="mt-3 text-[0.75rem] text-muted">Measured folders only. The rest of the used space is Windows and files not listed here.</p>
+              </>
             );
-          })
+          })()
         )}
       </div>
     </Card>
@@ -201,7 +218,7 @@ function FillingCard() {
 export function StoragePage() {
   const { data, load } = useSys();
   const review = useReview();
-  const [tab, setTab] = useState<Tab>("all");
+  const [tab, setTab] = useState<Tab>("clean");
   const [moving, setMoving] = useState<Row | null>(null);
   const caches = data.get_caches;
   const usage = data.get_disk_usage;
@@ -221,8 +238,8 @@ export function StoragePage() {
 
   const chosen = rows.filter((r) => r.cacheId && !r.locked && selected.has(r.cacheId));
   const potential = sum(chosen);
-  const visible = tab === "all" ? rows : rows.filter((r) => r.tab === tab);
-  const count = (t: Exclude<Tab, "all">) => rows.filter((r) => r.tab === t).length;
+  const visible = rows.filter((r) => inTab(r, tab));
+  const count = (t: Tab) => rows.filter((r) => inTab(r, t)).length;
 
   const toggle = (id: string, on: boolean) =>
     setSelected((s) => {
@@ -268,7 +285,7 @@ export function StoragePage() {
         </div>
       }
     >
-      <Card className="shrink-0 px-4 py-2.5">
+      <Card className="shrink-0 px-4 py-2.5" data-focus-id="c-drive">
         {st.status === "error" ? (
           <InlineError what="storage info" onRetry={() => load("get_storage")} />
         ) : drive ? (
@@ -292,22 +309,20 @@ export function StoragePage() {
         )}
       </Card>
 
-      <div className="mt-3 shrink-0">
+      <div className="shrink-0">
         <Tabs
           label="Storage categories"
           value={tab}
           onChange={setTab}
           items={[
-            { id: "all", label: `All (${rows.length})` },
-            { id: "dev", label: `Developer (${count("dev")})` },
-            { id: "system", label: `System (${count("system")})` },
-            { id: "move", label: `Move data (${count("move")})` },
-            { id: "files", label: `Your files (${count("files")})` },
+            { id: "clean", label: `Safe to clean (${count("clean")})` },
+            { id: "move", label: `Move (${count("move")})` },
+            { id: "files", label: `Yours (${count("files")})` },
           ]}
         />
       </div>
 
-      <div className="mt-3 grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_18rem] gap-3">
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_18rem] gap-4">
         <Card className="flex min-h-0 flex-col">
           <ul className="min-h-0 flex-1 divide-y divide-line overflow-y-auto" aria-label="Storage items">
             {caches.status === "error" && (
@@ -317,25 +332,21 @@ export function StoragePage() {
             )}
             {visible.map((r) => {
               const canPick = !!r.cacheId && !r.locked;
-              return (
-                <li key={r.key} className="flex items-center gap-3 px-4 py-2.5" data-testid={`row-${r.key}`}>
-                  {r.locked && r.locked === PROTECTED_REASON ? (
+              const inner = (
+                <>
+                  {r.locked === PROTECTED_REASON ? (
                     <span title={r.locked} className="grid size-[1.125rem] place-items-center text-muted">
                       <Lock size={15} strokeWidth={ICON_STROKE} aria-label={r.locked} />
                     </span>
+                  ) : canPick ? (
+                    <Checkbox label={`Select ${r.name}`} checked={selected.has(r.cacheId!)} onChange={(on) => toggle(r.cacheId!, on)} />
                   ) : (
-                    <Checkbox
-                      label={`Select ${r.name}`}
-                      checked={canPick && selected.has(r.cacheId!)}
-                      disabled={!canPick}
-                      onChange={(on) => toggle(r.cacheId!, on)}
-                    />
+                    <span aria-hidden className="size-[1.125rem] shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="truncate text-[0.9375rem] font-medium">{r.name}</div>
                     <div className="truncate text-[0.8125rem] text-muted" title={r.path}>
-                      {r.locked && r.locked !== "Not available yet" ? r.locked : TAB_NOTE[r.tab]}
-                      {r.cacheId || r.wslDistro ? "" : " · Not available yet"}
+                      {r.locked === PROTECTED_REASON ? r.locked : r.tab === "move" && !r.wslDistro ? "Shown for information. Lagsmith can't move this yet." : TAB_NOTE[r.tab]}
                     </div>
                   </div>
                   <span className="text-[0.9375rem] tabular-nums">{formatGB(r.bytes)}</span>
@@ -344,9 +355,22 @@ export function StoragePage() {
                       Move…
                     </Button>
                   )}
-                  <Badge tone={r.cacheId ? "success" : r.tab === "move" ? "info" : "neutral"} className="w-16 justify-center">
-                    {r.cacheId ? "Safe" : r.tab === "move" ? "Move" : "Yours"}
-                  </Badge>
+                  {r.cacheId ? (
+                    <Badge tone="success" className="w-16 justify-center">
+                      Safe
+                    </Badge>
+                  ) : !r.wslDistro ? (
+                    <Badge tone="neutral" className="w-16 justify-center">
+                      Yours
+                    </Badge>
+                  ) : null}
+                </>
+              );
+              const cls = "flex min-h-[3.25rem] items-center gap-3 px-4 py-2";
+              return (
+                <li key={r.key} data-testid={`row-${r.key}`}>
+                  {/* The label makes the whole row the click target for the 18 px checkbox. */}
+                  {canPick ? <label className={cn(cls, "cursor-pointer hover:bg-subtle")}>{inner}</label> : <div className={cls}>{inner}</div>}
                 </li>
               );
             })}
@@ -355,23 +379,21 @@ export function StoragePage() {
                 <LoadingRows rows={4} />
               </li>
             )}
-            {(tab === "move" || tab === "files" || tab === "all") && usage.data === undefined && usage.status !== "error" && (
+            {tab !== "clean" && usage.data === undefined && usage.status !== "error" && (
               <li className="px-4 py-2.5 text-[0.8125rem] text-muted" role="status">
-                Measuring folders for Move data and Your files…
+                Measuring folders…
               </li>
             )}
-            {caches.data !== undefined && visible.length === 0 && (tab !== "move" && tab !== "files" ? true : usage.data !== undefined) && (
+            {caches.data !== undefined && visible.length === 0 && (tab === "clean" ? true : usage.data !== undefined) && (
               <li>
                 <Empty>Nothing in this category.</Empty>
               </li>
             )}
           </ul>
           <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2.5">
-            <span className="text-[0.875rem]">
-              {chosen.length === 1 ? "1 item" : `${chosen.length} items`} selected ({formatGB(potential)})
-            </span>
+            <span className="text-[0.875rem] text-muted">{chosen.length} selected</span>
             <Button onClick={openReview} disabled={chosen.length === 0}>
-              Review & Clean
+              {chosen.length === 1 ? "Review 1 item" : chosen.length === 0 ? "Review items" : `Review ${chosen.length} items`}
               <ArrowRight size={16} strokeWidth={ICON_STROKE} aria-hidden />
             </Button>
           </div>
