@@ -15,7 +15,7 @@ A row is ticked only when an automated test proves it: `e2e/real` checks the rea
 | A5 | Blue screens with code and meaning | Crash Detective | real: 0xCE, 0x50; mock: blue screen without a dump | done |
 | A6 | Unexpected shutdowns | Crash Detective | real, cargo test | done |
 | A7 | App crashes and hangs (`vgm.exe`) | Crash Detective | real: vgm.exe | done |
-| A8 | Drivers named in crash dumps (`vgk.sys`) | Crash Detective | helper `analyze-dumps` (dbgeng), unit tests; needs owner's one UAC run (`scripts/test-admin.ps1`) | built, awaiting UAC check |
+| A8 | Drivers named in crash dumps (`vgk.sys`) | Crash Detective | owner's UAC run 27 Nov: `112526-14828-01.dmp` 0xCE suspect `vgk.sys` (unloaded), matches case study | done |
 | A9 | Anti-cheat installed, service state | Crash Detective, Gaming | real: Riot Vanguard | done |
 | A10 | Free RAM, top memory apps (anti-cheat never opened) | Memory | real: no vgc/VALORANT rows | done |
 | A11 | Page file | Hardware | real | done |
@@ -29,7 +29,7 @@ A row is ticked only when an automated test proves it: `e2e/real` checks the rea
 | A19 | Game Mode, Game Bar capture | Gaming | real | done |
 | A20 | Secure Boot, TPM 2.0 (VAN9001/9003) | Gaming, Dashboard | real: Secure Boot on, TPM 2.0; mock: failing fixture | done |
 
-**19 done, 1 built (A8, awaiting the owner's UAC check).**
+**20 of 20 done.**
 
 ## B. Screens (owner's 9-screen design)
 
@@ -45,7 +45,7 @@ Dashboard, Scan PC, Crash Detective, Hardware, Storage Cleaner, Startup Manager,
 | C4 | GPU preference per game | `get_gpu_preferences` + `GpuPreference` action/undo; unit + mock UI + dual-GPU finding | done |
 | C5 | Clean user caches (handle-based, never follows links) | unit tests on temp folders; mock UI flow. Not yet run on real caches. | done (unit) |
 | C6 | Run SFC and DISM with live progress | helper parsers unit-tested; needs owner's UAC run | built, awaiting UAC check |
-| C7 | Restore point before changes | helper `restore-point`; needs owner's UAC run | built, awaiting UAC check |
+| C7 | Restore point before changes | owner's UAC run 27 Nov: restore point created | done |
 | C8 | Move WSL to another drive (`wsl --manage --move`, WSL 2.3+, undo moves back) | unit tests (distro, path, drive, space, version, game folders); mock UI flow, undo via History confirm, unknown-drive, low-space and game-folder refusals, old-WSL message (same-drive refusal is unit-tested only). Never run on this PC. | built, not run on a real distro |
 | C9 | Remove a leftover Store app (`PackageManager`, current user, not reversible, "Reinstall from Microsoft Store") | unit tests (deny list, allow-list re-check, framework/system refusal, fake remover); mock UI flow, History has no undo. Never run on this PC. | built, not run on a real package |
 
