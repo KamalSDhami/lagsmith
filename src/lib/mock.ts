@@ -7,7 +7,7 @@ import type { ActionCommands, AdminEvent, AdminResult, AdminTask, ChangeItem, Ch
 // the contract requires but we never measured are marked "invented" below.
 //
 // URL switches (all composable):
-//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing|oldwsl (repeatable)
+//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing|oldwsl|oldcrash (repeatable)
 //   ?fail=<command>   make one command fail (repeatable)
 //   ?delay=<ms>       fixed delay for every command (default 300; driver check 1500, disk usage 2000)
 
@@ -227,6 +227,14 @@ const FIXTURES: Record<string, Fixture> = {
       },
     ];
   },
+  // Older events (invented dates) so the Crash Detective range control has something to filter.
+  oldcrash: (d) => {
+    d.get_stability.crashes.push({ time: timeAgo(12, 9, 14), code: "0x00000116", meaning: "The graphics driver stopped responding.", dumpFile: null });
+    d.get_stability.days.forEach((x) => {
+      if (x.date === dayAgo(12)) x.blueScreens = 1;
+    });
+    d.get_stability.appCrashes.push({ time: timeAgo(20, 15, 2), app: "old_game.exe", module: "d3d11.dll", hang: false });
+  },
   noram: (d) => {
     d.get_hardware.ramSticks = 0;
   },
@@ -340,10 +348,13 @@ function later<T>(cmd: string, work: () => T): Promise<T> {
   );
 }
 
+let bgLooks = 0;
+
 export function mockCall<K extends keyof Commands>(cmd: K): Promise<Commands[K]> {
   return later(cmd, () => {
     const out = structuredClone(db()[cmd]);
-    if (cmd === "get_background_repair" && params().getAll("fixture").includes("backgroundDone")) db().get_background_repair = [];
+    // React StrictMode loads everything twice at start, so "the first look" is two calls; the Refresh button is the third and sees the repair finished.
+    if (cmd === "get_background_repair" && params().getAll("fixture").includes("backgroundDone") && ++bgLooks >= 2) db().get_background_repair = [];
     return out;
   });
 }

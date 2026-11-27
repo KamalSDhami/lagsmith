@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
 import { useSys } from "../lib/useSystemData";
 import { Card } from "./ui/card";
@@ -9,14 +10,24 @@ import { PROTECTED_REASON } from "../lib/protected";
 import { cn } from "../lib/cn";
 
 /** Read-only anti-cheat status from get_anticheat. */
-export function AntiCheatCard({ className }: { className?: string }) {
+export function AntiCheatCard({
+  className,
+  title = "Anti-cheat status",
+  focusId,
+  children,
+}: {
+  className?: string;
+  title?: string;
+  focusId?: string;
+  children?: ReactNode;
+}) {
   const { data, load } = useSys();
   return (
-    <Card className={cn("flex min-h-0 flex-col", className)} aria-labelledby="ac-title">
+    <Card className={cn("flex min-h-0 flex-col", className)} aria-labelledby="ac-title" data-focus-id={focusId}>
       <div className="flex items-center gap-2 px-4 pt-3.5 pb-1.5">
         <Lock size={16} strokeWidth={ICON_STROKE} className="text-muted" aria-hidden />
         <h2 id="ac-title" className="text-[0.9375rem] font-semibold">
-          Anti-cheat status
+          {title}
         </h2>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -46,6 +57,7 @@ export function AntiCheatCard({ className }: { className?: string }) {
           }
         </Show>
       </div>
+      {children && <div className="border-t border-line pt-2">{children}</div>}
       <p className="border-t border-line px-4 py-2 text-[0.75rem] text-muted">{PROTECTED_REASON}.</p>
     </Card>
   );
