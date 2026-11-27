@@ -12,7 +12,7 @@ test("storage: review, apply, results; caches can't be undone", async ({ page })
   await open(page);
   await nav(page, "Storage Cleaner");
   await expect(page.getByTestId("potential")).toHaveText("19.6 GB");
-  await page.getByRole("button", { name: /Review & Clean/ }).click();
+  await page.getByRole("button", { name: "Review 5 items" }).click();
 
   const d = sheet(page);
   await expect(d.getByRole("heading", { name: "Review: Storage cleanup" })).toBeVisible();
@@ -63,32 +63,36 @@ test("startup: single-item review, apply, undo from results", async ({ page }) =
   await expect(set.getByRole("button", { name: "Undo" })).toBeDisabled();
 });
 
-test("gaming: Apply Optimization as one set, undo from History with confirmation", async ({ page }) => {
+test("gaming: optimize proposes only the settings that differ, undo from History with confirmation", async ({ page }) => {
   await open(page);
   await nav(page, "Gaming Mode");
-  await page.getByRole("button", { name: "Apply Optimization" }).click();
+  // Mock: Game Mode is on and Game Bar recording is off, so only the power mode differs.
+  await expect(page.getByText("To change: Power mode.")).toBeVisible();
+  await page.getByRole("button", { name: "Review and apply 1 change" }).click();
 
   const d = sheet(page);
   await expect(d.getByRole("heading", { name: "Review: Gaming optimization" })).toBeVisible();
-  await expect(d).toContainText("3 changes");
+  await expect(d).toContainText("1 change");
   await expect(d).toContainText("Set power mode to Best performance");
+  await expect(d).not.toContainText("Turn on Game Mode");
   await d.getByRole("button", { name: "Apply changes" }).click();
   const r = d.getByTestId("results");
   await expect(r).toContainText("Set power mode to Best performance");
-  await expect(r).toContainText("Already on");
-  await expect(r).toContainText("Skipped");
+  await expect(r).toContainText("Done");
   await d.getByRole("button", { name: "Close" }).click();
   await expect(page.getByRole("combobox", { name: "Power mode" })).toHaveValue("best_performance");
+  // Nothing left to change: the button says so and is disabled.
+  await expect(page.getByRole("button", { name: "Already optimized" })).toBeDisabled();
 
   await nav(page, "History & Undo");
   const set = page.getByRole("list", { name: "Change history" }).getByRole("listitem").first();
   await expect(set).toContainText("Gaming optimization");
   await set.getByRole("button", { name: /Show details/ }).click();
-  await expect(set).toContainText("Turn off Game Bar background recording");
+  await expect(set).toContainText("Set power mode to Best performance");
   await set.getByRole("button", { name: "Undo" }).click();
   const confirm = page.getByRole("dialog", { name: "Confirm undo" });
   await expect(confirm).toContainText('Undo "Gaming optimization"?');
-  await confirm.getByRole("button", { name: "Undo changes" }).click();
+  await confirm.getByRole("button", { name: "Undo 1 change" }).click();
   await expect(confirm).toBeHidden();
   await expect(set).toContainText("Undone");
 
@@ -139,7 +143,7 @@ test("Cancel changes nothing", async ({ page }) => {
   await expect(sw).toHaveAttribute("aria-checked", "true");
 
   await nav(page, "Gaming Mode");
-  await page.getByRole("button", { name: "Apply Optimization" }).click();
+  await page.getByRole("button", { name: "Review and apply 1 change" }).click();
   await page.keyboard.press("Escape");
   await expect(sheet(page)).toBeHidden();
   await expect(page.getByRole("combobox", { name: "Power mode" })).toHaveValue("balanced");
@@ -150,7 +154,7 @@ test("Cancel changes nothing", async ({ page }) => {
 test("a running protected game: refusal message, nothing changes", async ({ page }) => {
   await open(page, "fixture=gameRunning");
   await nav(page, "Storage Cleaner");
-  await page.getByRole("button", { name: /Review & Clean/ }).click();
+  await page.getByRole("button", { name: "Review 5 items" }).click();
   await sheet(page).getByRole("button", { name: "Apply changes" }).click();
   const alert = sheet(page).getByRole("alert");
   await expect(alert).toContainText("Lagsmith didn't apply these changes");
@@ -166,7 +170,7 @@ test("locked startup rows explain why and have no toggle", async ({ page }) => {
   await expect(page.getByTestId("startup-hklm-vanguard").getByRole("switch")).toHaveCount(0);
   await expect(page.getByTestId("startup-hklm-vanguard")).toContainText("Lagsmith never changes anti-cheat software");
   await expect(page.getByTestId("startup-hklm-securityhealth").getByRole("switch")).toHaveCount(0);
-  await expect(page.getByTestId("startup-hklm-securityhealth")).toContainText("Needs admin (coming soon)");
+  await expect(page.getByTestId("startup-hklm-securityhealth")).toContainText("Machine-wide entry: change it in Task Manager > Startup apps");
 });
 
 test("admin: SFC streams progress across navigation, locks other tasks, refreshes lastSfc", async ({ page }) => {
@@ -357,7 +361,7 @@ test("debloat: refused while a protected game runs, app stays listed", async ({ 
 test("storage: move a WSL distro to D:, review warns about shutdown, undo moves it back", async ({ page }) => {
   await open(page);
   await nav(page, "Storage Cleaner");
-  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("tab", { name: /^Move/ }).click();
   await page.getByRole("button", { name: "Move Ubuntu" }).click();
 
   const form = page.getByRole("dialog", { name: "Move WSL distro" });
@@ -382,11 +386,11 @@ test("storage: move a WSL distro to D:, review warns about shutdown, undo moves 
   await set.getByRole("button", { name: "Undo" }).click();
   const confirm = page.getByRole("dialog", { name: "Confirm undo" });
   await expect(confirm).toContainText("shuts that distro down first");
-  await confirm.getByRole("button", { name: "Undo changes" }).click();
+  await confirm.getByRole("button", { name: /^Undo \d+ changes?$/ }).click();
   await expect(confirm).toBeHidden();
   await expect(set).toContainText("Undone");
   await nav(page, "Storage Cleaner");
-  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("tab", { name: /^Move/ }).click();
   await expect(page.getByTitle("C:\\Users\\Kamal\\AppData\\Local\\wsl\\Ubuntu\\ext4.vhdx").first()).toBeVisible({ timeout: 10_000 });
   await expect(page.getByTitle("D:\\WSL\\Ubuntu\\ext4.vhdx")).toHaveCount(0);
   await expectFits(page);
@@ -395,7 +399,7 @@ test("storage: move a WSL distro to D:, review warns about shutdown, undo moves 
 test("storage: WSL move refuses an unknown drive and a game folder", async ({ page }) => {
   await open(page);
   await nav(page, "Storage Cleaner");
-  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("tab", { name: /^Move/ }).click();
   for (const [target, why] of [
     ["E:\\WSL\\Ubuntu", "isn't a local fixed drive"],
     ["D:\\Riot Games\\wsl", "never moves WSL into game"],
@@ -416,7 +420,7 @@ test("storage: WSL move refuses an unknown drive and a game folder", async ({ pa
 test("storage: old WSL gets an honest update message", async ({ page }) => {
   await open(page, "fixture=oldwsl");
   await nav(page, "Storage Cleaner");
-  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("tab", { name: /^Move/ }).click();
   await page.getByRole("button", { name: "Move Ubuntu" }).click();
   await page.getByRole("dialog", { name: "Move WSL distro" }).getByRole("button", { name: "Review move" }).click();
   const d = sheet(page);
@@ -428,7 +432,7 @@ test("storage: old WSL gets an honest update message", async ({ page }) => {
 test("storage: WSL move is refused while a protected game runs", async ({ page }) => {
   await open(page, "fixture=gameRunning");
   await nav(page, "Storage Cleaner");
-  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("tab", { name: /^Move/ }).click();
   await page.getByRole("button", { name: "Move Ubuntu" }).click();
   await page.getByRole("dialog", { name: "Move WSL distro" }).getByRole("button", { name: "Review move" }).click();
   await sheet(page).getByRole("button", { name: "Apply changes" }).click();
@@ -438,7 +442,7 @@ test("storage: WSL move is refused while a protected game runs", async ({ page }
 test("storage: the move form blocks a drive without enough space", async ({ page }) => {
   await open(page);
   await nav(page, "Storage Cleaner");
-  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("tab", { name: /^Move/ }).click();
   await page.getByRole("button", { name: "Move Ubuntu" }).click();
   const form = page.getByRole("dialog", { name: "Move WSL distro" });
   await form.getByLabel("Folder").fill("C:\\WSL\\Ubuntu");

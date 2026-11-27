@@ -9,11 +9,8 @@ test("two GPUs: dedicated is primary, both are listed, power-saving app triggers
   await expect(page.getByText("Upgrade Tip")).toHaveCount(0);
   await showAllFindings(page);
   await expect(page.getByText("App set to power-saving graphics")).toBeVisible();
-  await page.getByRole("button", { name: /Show all graphics adapters/ }).click();
-  await expect(page.getByRole("dialog", { name: "Graphics adapters" })).toContainText("Used by games");
-  await expect(page.getByRole("dialog", { name: "Graphics adapters" })).toContainText("Used for the display");
-  await page.keyboard.press("Escape");
-  await nav(page, "Hardware");
+  // The Graphics card is a link to Hardware, which lists both adapters.
+  await page.getByRole("button", { name: /^Graphics: .*Open Hardware/ }).click();
   await expect(page.getByRole("list", { name: "Graphics adapters" }).getByRole("listitem")).toHaveCount(2);
   await expectFits(page);
 });
@@ -78,12 +75,13 @@ test("empty lists show empty states", async ({ page }) => {
   await nav(page, "Crash Detective");
   await expect(page.getByText("No blue screens recorded.")).toBeVisible();
   await expect(page.getByText("No app crashes recorded.")).toBeVisible();
+  await nav(page, "Gaming Mode");
   await expect(page.getByText("No anti-cheat software found.")).toBeVisible();
   await nav(page, "Hardware");
   await expect(page.getByText("No graphics adapter found").first()).toBeVisible();
   await nav(page, "Storage Cleaner");
   await expect(page.getByText("Nothing in this category.")).toBeVisible();
-  await expect(page.getByRole("button", { name: /Review & Clean/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Review items" })).toBeDisabled();
 });
 
 test("VALORANT requirements failing: Gaming note and dashboard finding", async ({ page }) => {
@@ -149,7 +147,7 @@ test("power mode Best power efficiency while plugged in: finding and Gaming note
   const row = page.getByRole("listitem").filter({ hasText: "Power mode is set to Best power efficiency" });
   await expect(row).toBeVisible();
   await expect(row).toContainText("Windows is limiting performance even though you're plugged in.");
-  await expect(row).toContainText("(Windows power settings)");
+  await expect(row).toContainText("Windows power settings");
   await row.getByRole("button", { name: "Fix in Gaming Mode" }).click();
   await expect(page.getByRole("heading", { name: "Gaming Mode", level: 1 })).toBeVisible();
   await expect(page.getByRole("combobox", { name: "Power mode" })).toHaveValue("best_efficiency");
@@ -170,9 +168,9 @@ test("worn battery: finding and amber health on Hardware", async ({ page }) => {
   const row = page.getByRole("listitem").filter({ hasText: "Battery holds 25% of its original charge" });
   await expect(row).toBeVisible();
   await expect(row).toContainText("12.09 Wh of 48.84 Wh design");
-  await expect(row).toContainText("(Battery report)");
-  await row.getByRole("button", { name: "View hardware" }).click();
-  await expect(page.getByRole("heading", { name: "Hardware Overview" })).toBeVisible();
+  await expect(row).toContainText("Battery report");
+  await row.getByRole("button", { name: "See battery" }).click();
+  await expect(page.getByRole("heading", { name: "Hardware", level: 1 })).toBeVisible();
   const badge = page.getByText("Health 25%");
   await expect(badge).toBeVisible();
   await expect(badge).toHaveClass(/text-warning/);
