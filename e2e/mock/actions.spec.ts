@@ -372,15 +372,26 @@ test("storage: move a WSL distro to D:, review warns about shutdown, undo moves 
   await expect(d.getByTestId("results")).toContainText("Moved WSL distro Ubuntu to D:\\WSL\\Ubuntu");
   await expect(page.getByTitle("D:\\WSL\\Ubuntu\\ext4.vhdx").first()).toBeVisible({ timeout: 10_000 });
 
-  await d.getByRole("button", { name: "Undo" }).click();
-  await expect(d.getByRole("heading", { name: "Changes undone" })).toBeVisible();
+  // Undo shuts the distro down, so it is only offered from History, behind a confirmation.
+  await expect(d).toContainText("To undo, use History & Undo");
+  await expect(d.getByRole("button", { name: "Undo" })).toHaveCount(0);
   await d.getByRole("button", { name: "Close" }).click();
-  await expect(page.getByTitle("D:\\WSL\\Ubuntu\\ext4.vhdx").first()).toHaveCount(0);
+  await nav(page, "History & Undo");
+  const set = page.getByRole("list", { name: "Change history" }).getByRole("listitem").first();
+  await set.getByRole("button", { name: "Undo" }).click();
+  const confirm = page.getByRole("dialog", { name: "Confirm undo" });
+  await expect(confirm).toContainText("shuts that distro down first");
+  await confirm.getByRole("button", { name: "Undo changes" }).click();
+  await expect(confirm).toBeHidden();
+  await expect(set).toContainText("Undone");
+  await nav(page, "Storage Cleaner");
+  await page.getByRole("tab", { name: /Move data/ }).click();
   await expect(page.getByTitle("C:\\Users\\Kamal\\AppData\\Local\\wsl\\Ubuntu\\ext4.vhdx").first()).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTitle("D:\\WSL\\Ubuntu\\ext4.vhdx")).toHaveCount(0);
   await expectFits(page);
 });
 
-test("storage: WSL move refuses the same drive and a game folder", async ({ page }) => {
+test("storage: WSL move refuses an unknown drive and a game folder", async ({ page }) => {
   await open(page);
   await nav(page, "Storage Cleaner");
   await page.getByRole("tab", { name: /Move data/ }).click();

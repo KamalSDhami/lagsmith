@@ -46,7 +46,7 @@ Dashboard, Scan PC, Crash Detective, Hardware, Storage Cleaner, Startup Manager,
 | C5 | Clean user caches (handle-based, never follows links) | unit tests on temp folders; mock UI flow. Not yet run on real caches. | done (unit) |
 | C6 | Run SFC and DISM with live progress | helper parsers unit-tested; needs owner's UAC run | built, awaiting UAC check |
 | C7 | Restore point before changes | helper `restore-point`; needs owner's UAC run | built, awaiting UAC check |
-| C8 | Move WSL to another drive (`wsl --manage --move`, WSL 2.3+, undo moves back) | unit tests (distro, path, drive, space, version, game folders); mock UI flow, undo, same-drive and game-folder refusals, old-WSL message. Never run on this PC. | built, not run on a real distro |
+| C8 | Move WSL to another drive (`wsl --manage --move`, WSL 2.3+, undo moves back) | unit tests (distro, path, drive, space, version, game folders); mock UI flow, undo via History confirm, unknown-drive, low-space and game-folder refusals, old-WSL message (same-drive refusal is unit-tested only). Never run on this PC. | built, not run on a real distro |
 | C9 | Remove a leftover Store app (`PackageManager`, current user, not reversible, "Reinstall from Microsoft Store") | unit tests (deny list, allow-list re-check, framework/system refusal, fake remover); mock UI flow, History has no undo. Never run on this PC. | built, not run on a real package |
 
 All actions are refused during a protected game session (the game itself or `vgc`). The Vanguard tray icon doesn't block them.

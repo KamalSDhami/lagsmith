@@ -213,8 +213,9 @@ fn short(text: &str) -> String {
     if t.is_empty() { "WSL gave no reason".into() } else { t.chars().take(300).collect() }
 }
 
-/// Validates and runs one move. `Ok(original folder)` on success.
-fn do_move(distro: &str, target: &str) -> Result<String, String> {
+/// Validates and runs one move. `Ok((original folder, note))` once WSL reported success; the note is set
+/// when WSL's own list doesn't show the new location, but the move is still recorded so it can be undone.
+fn do_move(distro: &str, target: &str) -> Result<(String, String), String> {
     let known = system::wsl_distros();
     let distro = valid_distro(distro, &known)?;
     let src = lookup(distro)?;
@@ -249,16 +250,22 @@ fn do_move(distro: &str, target: &str) -> Result<String, String> {
         return Err(e);
     }
     let now = lookup(distro).map(|s| s.dir).unwrap_or_default();
-    if !now.eq_ignore_ascii_case(&target_str) {
-        return Err(format!("WSL said it finished, but {distro}'s disk isn't listed at {target_str}. Check it with \"wsl --list --verbose\""));
-    }
-    Ok(src.dir)
+    let note = if now.eq_ignore_ascii_case(&target_str) {
+        String::new()
+    } else {
+        format!("WSL said it finished, but its list doesn't show {target_str} yet. Check with \"wsl --list --verbose\"")
+    };
+    Ok((src.dir, note))
 }
 
 pub(crate) fn move_distro(distro: &str, target: &str) -> ChangeItem {
     let label = format!("Moved WSL distro {distro} to {}", target.trim());
     match do_move(distro, target) {
-        Ok(original) => item(label, Ok(Some(UndoData::WslMove { distro: distro.into(), original }))),
+        Ok((original, note)) => {
+            let mut it = item(label, Ok(Some(UndoData::WslMove { distro: distro.into(), original })));
+            it.detail = note;
+            it
+        }
         Err(e) => item(format!("Move WSL distro {distro}"), Err(e)),
     }
 }

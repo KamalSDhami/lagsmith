@@ -12,7 +12,7 @@ use crate::scan::{protected, storeapps};
 
 /// Never removable, whatever any list says. Matched case-insensitively anywhere in the package name.
 const DENY: &[&str] = &[
-    "xbox", "gaming", "game", "store", "framework", "vclibs", "netnative", "runtime", "windowsappruntime",
+    "xbox", "gaming", "game", "solitaire", "store", "framework", "vclibs", "netnative", "runtime", "windowsappruntime",
     "anticheat", "anti-cheat", "riot", "vanguard", "valorant", "battleye", "beservice", "faceit",
 ];
 
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn deny_list_blocks_system_xbox_and_anti_cheat() {
         for bad in [
-            "Microsoft.WindowsStore", "Microsoft.XboxGamingOverlay", "Microsoft.GamingServices", "Microsoft.XboxIdentityProvider",
+            "Microsoft.WindowsStore", "Microsoft.XboxGamingOverlay", "Microsoft.GamingServices", "Microsoft.XboxIdentityProvider", "Microsoft.MicrosoftSolitaireCollection",
             "Microsoft.VCLibs.140.00", "Microsoft.NET.Native.Framework.2.2", "Microsoft.WindowsAppRuntime.1.5",
             "RiotGames.Valorant", "EasyAntiCheat", "BattlEye", "", "Microsoft.StorePurchaseApp",
         ] {

@@ -80,7 +80,9 @@ function MoveDialog({
   onClose: () => void;
   onReview: (distro: string, target: string, bytes: number) => void;
 }) {
-  const others = drives.filter((d) => !d.isSystem);
+  // Where the disk is now: a drive letter in its path, else the system drive (paths under %LOCALAPPDATA% are shortened).
+  const home = row && /^[A-Za-z]:/.test(row.path) ? row.path.slice(0, 2).toUpperCase() : drives.find((d) => d.isSystem)?.letter;
+  const others = drives.filter((d) => d.letter !== home);
   const [target, setTarget] = useState("");
   useEffect(() => {
     if (row) setTarget(others[0] ? `${others[0].letter}\\WSL\\${row.wslDistro}` : "");

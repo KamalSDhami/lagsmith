@@ -35,6 +35,15 @@ export function useReview() {
   return useContext(ReviewContext);
 }
 
+/** Undoing a WSL move shuts the distro down, so it is only offered from History & Undo, behind its confirmation. */
+export function undoNeedsConfirm(set: ChangeSet): boolean {
+  return set.items.some((i) => (i.undo as { kind?: string } | null | undefined)?.kind === "wslMove");
+}
+
+export function movesWsl(set: ChangeSet): boolean {
+  return set.items.some((i) => i.status === "done" && (i.undo as { kind?: string } | null | undefined)?.kind === "wslMove");
+}
+
 /** True when a set has at least one applied item that can be reversed. */
 export function canUndo(set: ChangeSet): boolean {
   return !set.undone && set.items.some((i) => i.status === "done" && i.undo !== null && i.undo !== undefined);
@@ -48,7 +57,7 @@ export function freedTotal(set: ChangeSet): number {
 export function useRefreshAfterChange() {
   const { load, data } = useSys();
   const cachesLoaded = data.get_caches.status !== "idle";
-  const usageLoaded = data.get_disk_usage.status !== "idle";
+
   return useCallback(() => {
     void load("get_startup");
     void load("get_system");
@@ -57,8 +66,7 @@ export function useRefreshAfterChange() {
     void load("get_history");
     void load("get_store_apps");
     if (cachesLoaded) void load("get_caches");
-    if (usageLoaded) void load("get_disk_usage");
-  }, [load, cachesLoaded, usageLoaded]);
+  }, [load, cachesLoaded]);
 }
 
 const statusIcon = {
@@ -103,6 +111,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
   const [req, setReq] = useState<ReviewRequest | null>(null);
   const [phase, setPhase] = useState<Phase>({ kind: "review" });
   const refresh = useRefreshAfterChange();
+  const { load } = useSys();
 
   const open = useCallback((r: ReviewRequest) => {
     setReq(r);
@@ -118,6 +127,7 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
     try {
       const set = await act("apply_changes", { title: req.title, changes: req.changes });
       setPhase({ kind: "result", set });
+      if (movesWsl(set)) void load("get_disk_usage"); // the slow folder walk only when a disk actually moved
     } catch (e) {
       setPhase({ kind: "error", message: errorMessage(e), undo: false });
     } finally {
@@ -225,7 +235,12 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
               )}
               {phase.kind === "result" && (
                 <>
-                  {canUndo(phase.set) && (
+                  {canUndo(phase.set) && undoNeedsConfirm(phase.set) && (
+                    <span className="mr-auto text-[0.8125rem] text-muted">
+                      To undo, use History & Undo. It shuts the distro down first and asks you to confirm.
+                    </span>
+                  )}
+                  {canUndo(phase.set) && !undoNeedsConfirm(phase.set) && (
                     <Button variant="outline" onClick={() => undo(phase.set)}>
                       <Undo2 size={16} strokeWidth={ICON_STROKE} aria-hidden />
                       Undo
