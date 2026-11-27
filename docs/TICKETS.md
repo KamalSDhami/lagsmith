@@ -56,8 +56,9 @@ Pending, active, and completed work. Update status when something moves.
 | V2-1 | System Repair runner (`sfc`, `dism-restorehealth`, `restore-point`) with live progress | P2 | doing | Built & mock-tested; awaiting owner's `scripts/test-admin.ps1` UAC run |
 | V2-2 | Move WSL distro to another drive (`C8`): `wsl --manage --move`, WSL 2.3+ check, free-space and game-folder checks, undo moves back | P2 | doing | Built; 11 unit + mock UI tests pass. Never run on a real distro. Not built: SDK moves, folder picker |
 | V2-3 | Remove a leftover Store app (`C9`): `PackageManager`, current user, not reversible, "Reinstall from Microsoft Store" link | P2 | doing | Built; unit + mock UI tests pass. Never run on a real package. Game Bar removed from the allow-list (Xbox rule) |
-| V2-4 | Name exact faulting driver from crash dumps (`dbgeng.dll`, `A8`) | P2 | doing | Built & unit/mock-tested (`vgk.sys` in unloaded/loaded); awaiting owner's `scripts/test-admin.ps1` UAC run |
+| V2-4 | Name exact faulting driver from crash dumps (`dbgeng.dll`, `A8`) | P2 | done | Owner UAC run 27 Nov: `vgk.sys` (unloaded) in `112526-14828-01.dmp` |
 | V2-5 | Last SFC result from compressed CBS `.cab` archives (`A18`) | P2 | done | `System32\expand.exe` fallback + unit + real tests pass |
 | V2-6 | Memory: "close before gaming" list, one-time trim (no timed RAM cleaning) | P2 | todo | |
 | V2-7 | Dark mode palette (Apple-style neutral greys) | P2 | todo | |
 | V2-8 | Desktop PC hero image, chosen by device type | P2 | todo | Remove brand logos before shipping |
+| V2-9 | Closing the app during SFC/DISM leaves the elevated helper and `sfc.exe` running with no UI. Warn before close while an admin task runs; on reopen, show "a repair is still running" and pick up the result from the CBS log | P1 | todo | Found 27 Nov: owner closed app at SFC 84%; SFC kept going (good, killing it mid-repair is worse) |
