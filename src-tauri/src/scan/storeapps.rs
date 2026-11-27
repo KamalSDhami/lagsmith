@@ -9,8 +9,9 @@ use winreg::enums::{HKEY_CURRENT_USER, KEY_READ};
 
 const REPOSITORY: &str = r"Software\Classes\Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\Repository\Packages";
 
-// (exact package name, friendly name, publisher)
-pub(crate) const ALLOWED: [(&str, &str, &str); 24] = [
+// (exact package name, friendly name, publisher). Xbox/Game Bar packages are deliberately absent:
+// Lagsmith never removes anything Xbox, gaming or anti-cheat related (actions/store.rs enforces it again).
+pub(crate) const ALLOWED: [(&str, &str, &str); 23] = [
     ("Clipchamp.Clipchamp", "Clipchamp", "Microsoft Corporation"),
     ("Microsoft.BingNews", "Microsoft News", "Microsoft Corporation"),
     ("Microsoft.BingWeather", "Weather", "Microsoft Corporation"),
@@ -27,7 +28,6 @@ pub(crate) const ALLOWED: [(&str, &str, &str); 24] = [
     ("Microsoft.YourPhone", "Phone Link", "Microsoft Corporation"),
     ("Microsoft.OutlookForWindows", "Outlook (new)", "Microsoft Corporation"),
     ("Microsoft.MicrosoftOfficeHub", "Microsoft 365 (Office)", "Microsoft Corporation"),
-    ("Microsoft.XboxGamingOverlay", "Game Bar", "Microsoft Corporation"),
     ("Microsoft.WindowsSoundRecorder", "Sound Recorder", "Microsoft Corporation"),
     ("Microsoft.WindowsAlarms", "Clock", "Microsoft Corporation"),
     ("MicrosoftCorporationII.QuickAssist", "Quick Assist", "Microsoft Corporation"),

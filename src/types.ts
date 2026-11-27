@@ -75,9 +75,11 @@ export type ChangeRequest =
   | { kind: "gameBarCapture"; on: boolean }
   | { kind: "powerMode"; mode: "best_performance" | "balanced" | "best_efficiency" }
   | { kind: "cleanCaches"; ids: string[] }
-  | { kind: "gpuPreference"; exe: string; preference: GpuPref };
+  | { kind: "gpuPreference"; exe: string; preference: GpuPref }
+  | { kind: "removeStoreApp"; id: string } // C9: cannot be undone
+  | { kind: "wslMove"; distro: string; target: string }; // C8: undo moves it back
 
-export interface ChangeItem { description: string; status: "done" | "skipped" | "failed"; detail: string; undo: unknown | null; freedBytes: number }
+export interface ChangeItem { description: string; status: "done" | "skipped" | "failed"; detail: string; undo: unknown | null; freedBytes: number; reinstallPfn?: string | null }
 export interface ChangeSet { id: string; time: string; title: string; items: ChangeItem[]; undone: boolean }
 
 export interface AppMemory { name: string; processes: number; bytes: number }

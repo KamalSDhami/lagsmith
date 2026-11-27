@@ -7,7 +7,7 @@ import type { ActionCommands, AdminEvent, AdminResult, AdminTask, ChangeItem, Ch
 // the contract requires but we never measured are marked "invented" below.
 //
 // URL switches (all composable):
-//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing (repeatable)
+//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing|oldwsl (repeatable)
 //   ?fail=<command>   make one command fail (repeatable)
 //   ?delay=<ms>       fixed delay for every command (default 300; driver check 1500, disk usage 2000)
 
@@ -167,7 +167,7 @@ function base(): Commands {
         { name: "Visual Studio Community 2022", displayPath: "C:\\Program Files\\Microsoft Visual Studio", bytes: gb(11.7) },
         { name: "Android Studio", displayPath: "C:\\Program Files\\Android\\Android Studio", bytes: gb(2.6) },
       ],
-      wslDisks: [{ name: "WSL (Ubuntu)", displayPath: "%LOCALAPPDATA%\\Packages\\CanonicalGroup...\\ext4.vhdx", bytes: gb(18.28) }],
+      wslDisks: [{ name: "Ubuntu", displayPath: "%LOCALAPPDATA%\\Packages\\CanonicalGroup...\\ext4.vhdx", bytes: gb(18.28) }],
       appData: [{ name: "Android SDK", displayPath: "%LOCALAPPDATA%\\Android\\Sdk", bytes: gb(6.4) }],
       userFolders: [
         { name: "Downloads", displayPath: "%USERPROFILE%\\Downloads", bytes: gb(7.9) },
@@ -176,8 +176,8 @@ function base(): Commands {
       ],
     },
     get_store_apps: [
-      { id: "Microsoft.GetHelp_8wekyb3d8bbwe", name: "Get Help", publisher: "Microsoft Corporation" },
-      { id: "Clipchamp.Clipchamp_yxz26nhyzhsrt", name: "Clipchamp", publisher: "Microsoft Corporation" },
+      { id: "Microsoft.GetHelp", name: "Get Help", publisher: "Microsoft Corporation" },
+      { id: "Clipchamp.Clipchamp", name: "Clipchamp", publisher: "Microsoft Corporation" },
     ],
     get_gpu_preferences: [
       {
@@ -262,6 +262,8 @@ const FIXTURES: Record<string, Fixture> = {
     Object.assign(d.get_system.power, { onBattery: false, batteryPercent: 65, batteryDesignWh: 57, batteryFullWh: 48 });
   },
   gameRunning: () => {},
+  // WSL older than 2.3: moving a distro is refused with an "update WSL" message.
+  oldwsl: () => {},
   dismMissing: () => {},
   // This PC's live data (26 Nov): Best power efficiency while plugged in.
   powersave: (d) => {
@@ -338,6 +340,15 @@ export function mockCall<K extends keyof Commands>(cmd: K): Promise<Commands[K]>
 
 type Undo = ChangeRequest;
 
+// C9: package family names for the sample Store apps (real apps have "<name>_<13 characters>").
+const MOCK_PFN: Record<string, string> = {
+  "Microsoft.GetHelp": "Microsoft.GetHelp_8wekyb3d8bbwe",
+  "Clipchamp.Clipchamp": "Clipchamp.Clipchamp_yxz26nhyzhsrt",
+};
+// C8: where the sample WSL disk lives until it is moved (Rust reads this from the registry).
+const MOCK_WSL_HOME = "C:\\Users\\Kamal\\AppData\\Local\\wsl\\Ubuntu";
+const wslHome = new Map<string, string>();
+
 const POWER_LABEL = { best_performance: "Best performance", balanced: "Balanced", best_efficiency: "Best power efficiency" };
 
 function applyOne(d: Commands, c: ChangeRequest): ChangeItem[] {
@@ -391,6 +402,37 @@ function applyOne(d: Commands, c: ChangeRequest): ChangeItem[] {
         if (sysDrive) sysDrive.freeBytes += freed;
         return item(`Clear ${cache.name}`, "done", "Refills on its own when the tool runs", null, freed);
       });
+    }
+    case "removeStoreApp": {
+      const app = d.get_store_apps.find((a) => a.id === c.id);
+      if (!app) return [item("Remove a Store app", "failed", "That app isn't in the removable list, or is already gone")];
+      d.get_store_apps = d.get_store_apps.filter((a) => a.id !== c.id);
+      return [{ ...item(`Removed ${app.name}`, "done", "Can't be undone. You can reinstall it from the Microsoft Store."), reinstallPfn: MOCK_PFN[c.id] ?? null }];
+    }
+    case "wslMove": {
+      const disk = d.get_disk_usage.wslDisks.find((w) => w.name === c.distro);
+      if (!disk) return [item(`Move WSL distro ${c.distro}`, "failed", "That isn't a WSL distro Lagsmith found")];
+      if (params().getAll("fixture").includes("oldwsl")) {
+        return [item(`Move WSL distro ${c.distro}`, "failed", 'Moving a WSL distro needs WSL 2.3 or newer. Update it with "wsl --update" in a terminal, then try again. Nothing was changed.')];
+      }
+      const target = c.target.trim().replace(/\\+$/, "");
+      const m = /^([A-Za-z]:)\\[^\\/:*?"<>|]+(\\[^\\/:*?"<>|]+)*$/.exec(target);
+      const home = wslHome.get(c.distro) ?? MOCK_WSL_HOME;
+      const fail = (why: string) => [item(`Move WSL distro ${c.distro}`, "failed", why)];
+      if (!m) return fail("The folder must be an absolute path on a drive. Use a full path like D:\\WSL\\Ubuntu");
+      if (/riot|vanguard|valorant|anticheat|battleye|faceit|program files|windows/i.test(target)) return fail("Lagsmith never moves WSL into game, anti-cheat, Windows or Program Files folders");
+      const letter = m[1].toUpperCase();
+      if (letter === home.slice(0, 2).toUpperCase()) return fail(`Choose a folder on a different drive than ${letter}`);
+      const drive = d.get_storage.drives.find((x) => x.letter === letter);
+      if (!drive) return fail("That drive isn't a local fixed drive");
+      if (drive.freeBytes < disk.bytes + GIB) return fail("That drive doesn't have enough free space for the move");
+      const from = home;
+      const fromDrive = d.get_storage.drives.find((x) => x.letter === from.slice(0, 2).toUpperCase());
+      drive.freeBytes -= disk.bytes;
+      if (fromDrive) fromDrive.freeBytes += disk.bytes;
+      wslHome.set(c.distro, target);
+      disk.displayPath = `${target}\\ext4.vhdx`;
+      return [item(`Moved WSL distro ${c.distro} to ${target}`, "done", "", { kind: "wslMove", distro: c.distro, target: from })];
     }
     case "gpuPreference": {
       const exe = c.exe.trim().replace(/^"+|"+$/g, "").trim().replace(/\//g, "\\");

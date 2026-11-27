@@ -99,9 +99,9 @@ test("storage cleaner", async ({ page }) => {
   await expect(page.getByTestId("potential")).toHaveText("19.6 GB");
   await expect(page.getByText("Gradle caches")).toBeVisible();
   await expect(page.getByRole("checkbox", { name: "Select npm cache" })).toBeChecked();
-  await expect(page.getByText("WSL (Ubuntu)").first()).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: "Select WSL (Ubuntu)" })).toBeDisabled();
-  await expect(page.getByRole("checkbox", { name: "Select WSL (Ubuntu)" })).not.toBeChecked();
+  await expect(page.getByText("Ubuntu").first()).toBeVisible();
+  await expect(page.getByRole("checkbox", { name: "Select Ubuntu" })).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: "Select Ubuntu" })).not.toBeChecked();
   await expect(page.getByText("18.3 GB").first()).toBeVisible();
   await page.getByRole("tab", { name: /Your files/ }).click();
   await expect(page.getByRole("checkbox", { name: "Select Downloads" })).toBeDisabled();
@@ -155,6 +155,6 @@ test("debloat", async ({ page }) => {
   await nav(page, "Debloat");
   await expect(page.getByText("Get Help")).toBeVisible();
   await expect(page.getByText("Clipchamp")).toBeVisible();
-  for (const b of await page.getByRole("button", { name: "Remove" }).all()) await expect(b).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Remove Get Help" })).toBeEnabled();
   await expectFits(page);
 });

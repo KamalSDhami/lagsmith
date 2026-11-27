@@ -54,8 +54,8 @@ Pending, active, and completed work. Update status when something moves.
 | ID | Task | Priority | Status | Notes |
 |---|---|---|---|---|
 | V2-1 | System Repair runner (`sfc`, `dism-restorehealth`, `restore-point`) with live progress | P2 | doing | Built & mock-tested; awaiting owner's `scripts/test-admin.ps1` UAC run |
-| V2-2 | Move large data to another drive (WSL, SDKs) with free-space checks (`C8`) | P2 | todo | |
-| V2-3 | Debloat from a fixed Store-app list (`C9`) | P2 | todo | Read-only listing done (`A17`) |
+| V2-2 | Move WSL distro to another drive (`C8`): `wsl --manage --move`, WSL 2.3+ check, free-space and game-folder checks, undo moves back | P2 | doing | Built; 11 unit + mock UI tests pass. Never run on a real distro. Not built: SDK moves, folder picker |
+| V2-3 | Remove a leftover Store app (`C9`): `PackageManager`, current user, not reversible, "Reinstall from Microsoft Store" link | P2 | doing | Built; unit + mock UI tests pass. Never run on a real package. Game Bar removed from the allow-list (Xbox rule) |
 | V2-4 | Name exact faulting driver from crash dumps (`dbgeng.dll`, `A8`) | P2 | doing | Built & unit/mock-tested (`vgk.sys` in unloaded/loaded); awaiting owner's `scripts/test-admin.ps1` UAC run |
 | V2-5 | Last SFC result from compressed CBS `.cab` archives (`A18`) | P2 | done | `System32\expand.exe` fallback + unit + real tests pass |
 | V2-6 | Memory: "close before gaming" list, one-time trim (no timed RAM cleaning) | P2 | todo | |

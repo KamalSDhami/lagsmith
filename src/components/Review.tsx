@@ -16,6 +16,8 @@ export interface ReviewItem {
 
 export interface ReviewRequest {
   title: string;
+  /** Shown above the list in the review step, for changes that need a plain warning (cannot be undone, shuts something down). */
+  warning?: string;
   groups: { label: string; items: ReviewItem[] }[];
   changes: ChangeRequest[];
 }
@@ -46,14 +48,17 @@ export function freedTotal(set: ChangeSet): number {
 export function useRefreshAfterChange() {
   const { load, data } = useSys();
   const cachesLoaded = data.get_caches.status !== "idle";
+  const usageLoaded = data.get_disk_usage.status !== "idle";
   return useCallback(() => {
     void load("get_startup");
     void load("get_system");
     void load("get_storage");
     void load("get_gpu_preferences");
     void load("get_history");
+    void load("get_store_apps");
     if (cachesLoaded) void load("get_caches");
-  }, [load, cachesLoaded]);
+    if (usageLoaded) void load("get_disk_usage");
+  }, [load, cachesLoaded, usageLoaded]);
 }
 
 const statusIcon = {
@@ -64,6 +69,11 @@ const statusIcon = {
 
 const statusText = { done: "Done", skipped: "Skipped", failed: "Failed" };
 
+/** A package family name looks like "Publisher.App_8wekyb3d8bbwe". Anything else never becomes a link. */
+export function validPfn(p: string | null | undefined): p is string {
+  return !!p && /^[A-Za-z0-9.-]{1,100}_[a-z0-9]{13}$/.test(p);
+}
+
 export function SetItems({ set }: { set: ChangeSet }) {
   return (
     <ul className="divide-y divide-line">
@@ -73,6 +83,14 @@ export function SetItems({ set }: { set: ChangeSet }) {
           <div className="min-w-0 flex-1">
             <div className="text-[0.875rem]">{it.description}</div>
             {it.detail && <div className="text-[0.8125rem] text-muted">{it.detail}</div>}
+            {it.status === "done" && validPfn(it.reinstallPfn) && (
+              <a
+                href={`ms-windows-store://pdp/?PFN=${it.reinstallPfn}`}
+                className="text-[0.8125rem] font-medium text-accent hover:underline"
+              >
+                Reinstall from Microsoft Store
+              </a>
+            )}
           </div>
           <span className="shrink-0 text-[0.8125rem] text-muted">{statusText[it.status]}</span>
         </li>
@@ -143,6 +161,11 @@ export function ReviewProvider({ children }: { children: ReactNode }) {
             <div className="min-h-0 flex-1 overflow-y-auto px-6 py-3">
               {(phase.kind === "review" || phase.kind === "working") && (
                 <div className="space-y-3" aria-busy={phase.kind === "working"}>
+                  {req.warning && (
+                    <p role="note" className="rounded-xl bg-warning-soft px-4 py-3 text-[0.875rem]">
+                      {req.warning}
+                    </p>
+                  )}
                   {req.groups.map((g) => (
                     <section key={g.label}>
                       <h3 className="text-[0.8125rem] font-medium text-muted">{g.label}</h3>

@@ -84,6 +84,7 @@ export function HistoryPage() {
     }
   };
 
+  const movesWsl = !!confirm?.items.some((i) => (i.undo as { kind?: string } | null)?.kind === "wslMove");
   const undoable = confirm ? confirm.items.filter((i) => i.status === "done" && i.undo != null).length : 0;
 
   return (
@@ -117,6 +118,7 @@ export function HistoryPage() {
             <h2 className="text-[1.125rem] font-semibold">Undo "{confirm.title}"?</h2>
             <p className="mt-1 text-[0.875rem] text-muted">
               This reverses {plural(undoable, "change", "changes")}. Cleared caches can't be restored; they refill on their own.
+              {movesWsl && " Undoing a WSL move shuts that distro down first, then moves its disk back."}
             </p>
             {error && (
               <p role="alert" className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-[0.875rem] text-danger">

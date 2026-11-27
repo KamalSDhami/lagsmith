@@ -4,6 +4,8 @@
 
 mod clean;
 mod settings;
+mod store;
+mod wsl;
 #[cfg(test)]
 mod live;
 
@@ -86,13 +88,21 @@ pub(crate) fn valid_cache(id: &str) -> Result<(), String> {
 
 fn item(description: String, result: Result<Option<UndoData>, String>) -> ChangeItem {
     match result {
-        Ok(undo) => ChangeItem { description, status: "done".into(), detail: String::new(), undo, freed_bytes: 0 },
-        Err(e) => ChangeItem { description, status: "failed".into(), detail: e, undo: None, freed_bytes: 0 },
+        Ok(undo) => ChangeItem { description, status: "done".into(), detail: String::new(), undo, freed_bytes: 0, reinstall_pfn: None },
+        Err(e) => ChangeItem { description, status: "failed".into(), detail: e, undo: None, freed_bytes: 0, reinstall_pfn: None },
     }
 }
 
+fn item_with_pfn(description: String, result: Result<Option<UndoData>, String>, pfn: Option<String>) -> ChangeItem {
+    let mut it = item(description, result);
+    if it.status == "done" {
+        it.reinstall_pfn = pfn;
+    }
+    it
+}
+
 fn skipped(description: String, why: &str) -> ChangeItem {
-    ChangeItem { description, status: "skipped".into(), detail: why.into(), undo: None, freed_bytes: 0 }
+    ChangeItem { description, status: "skipped".into(), detail: why.into(), undo: None, freed_bytes: 0, reinstall_pfn: None }
 }
 
 fn on_off(on: bool) -> &'static str {
@@ -113,6 +123,8 @@ pub(crate) fn apply_one(change: &ChangeRequest) -> Vec<ChangeItem> {
             ids.iter().map(|id| clean_cache(id)).collect()
         }
         ChangeRequest::GpuPreference { exe, preference } => vec![gpu_preference(exe, preference)],
+        ChangeRequest::RemoveStoreApp { id } => vec![store::remove(id)],
+        ChangeRequest::WslMove { distro, target } => vec![wsl::move_distro(distro, target)],
     }
 }
 
@@ -124,6 +136,7 @@ pub(crate) fn undo_one(undo: &UndoData) -> ChangeItem {
         UndoData::GameBarCapture { previous, previous_store } => game_bar(*previous, *previous_store, false),
         UndoData::PowerMode { previous } => power(previous, false),
         UndoData::GpuPreference { exe, previous } => undo_gpu_preference(exe, previous.as_deref()),
+        UndoData::WslMove { distro, original } => wsl::move_back(distro, original),
     }
 }
 
@@ -253,6 +266,7 @@ fn clean_cache(id: &str) -> ChangeItem {
             detail: if s.in_use + s.kept > 0 { format!("{} in use, {} kept", s.in_use, s.kept) } else { String::new() },
             undo: None, // caches refill on their own
             freed_bytes: s.freed_bytes,
+            reinstall_pfn: None,
         },
         Err(e) => item(format!("Cleared {name}"), Err(e)),
     }

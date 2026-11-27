@@ -188,7 +188,7 @@ fn cbs_rotations(dir: &std::path::Path, ext: &str) -> Vec<PathBuf> {
     files
 }
 
-fn system32_dir() -> Option<PathBuf> {
+pub(crate) fn system32_dir() -> Option<PathBuf> {
     let mut buf = [0u16; 260];
     let len = unsafe { windows::Win32::System::SystemInformation::GetSystemDirectoryW(Some(&mut buf)) } as usize;
     if len == 0 || len > buf.len() {

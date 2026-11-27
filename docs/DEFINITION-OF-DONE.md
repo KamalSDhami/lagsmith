@@ -15,7 +15,7 @@ A row is ticked only when an automated test proves it: `e2e/real` checks the rea
 | A5 | Blue screens with code and meaning | Crash Detective | real: 0xCE, 0x50; mock: blue screen without a dump | done |
 | A6 | Unexpected shutdowns | Crash Detective | real, cargo test | done |
 | A7 | App crashes and hangs (`vgm.exe`) | Crash Detective | real: vgm.exe | done |
-| A8 | Drivers named in crash dumps (`vgk.sys`) | Crash Detective | dump list only (real); naming needs the admin helper | **todo** |
+| A8 | Drivers named in crash dumps (`vgk.sys`) | Crash Detective | helper `analyze-dumps` (dbgeng), unit tests; needs owner's one UAC run (`scripts/test-admin.ps1`) | built, awaiting UAC check |
 | A9 | Anti-cheat installed, service state | Crash Detective, Gaming | real: Riot Vanguard | done |
 | A10 | Free RAM, top memory apps (anti-cheat never opened) | Memory | real: no vgc/VALORANT rows | done |
 | A11 | Page file | Hardware | real | done |
@@ -29,7 +29,7 @@ A row is ticked only when an automated test proves it: `e2e/real` checks the rea
 | A19 | Game Mode, Game Bar capture | Gaming | real | done |
 | A20 | Secure Boot, TPM 2.0 (VAN9001/9003) | Gaming, Dashboard | real: Secure Boot on, TPM 2.0; mock: failing fixture | done |
 
-**18 done, 1 partial, 1 todo.**
+**19 done, 1 built (A8, awaiting the owner's UAC check).**
 
 ## B. Screens (owner's 9-screen design)
 
@@ -44,10 +44,10 @@ Dashboard, Scan PC, Crash Detective, Hardware, Storage Cleaner, Startup Manager,
 | C3 | Power mode | live apply and undo; mock | done |
 | C4 | GPU preference per game | `get_gpu_preferences` + `GpuPreference` action/undo; unit + mock UI + dual-GPU finding | done |
 | C5 | Clean user caches (handle-based, never follows links) | unit tests on temp folders; mock UI flow. Not yet run on real caches. | done (unit) |
-| C6 | Run SFC and DISM with live progress | needs the admin helper | **todo** |
-| C7 | Restore point before changes | needs the admin helper | **todo** |
-| C8 | Move WSL to another drive | later | todo |
-| C9 | Remove a leftover Store app | later | todo |
+| C6 | Run SFC and DISM with live progress | helper parsers unit-tested; needs owner's UAC run | built, awaiting UAC check |
+| C7 | Restore point before changes | helper `restore-point`; needs owner's UAC run | built, awaiting UAC check |
+| C8 | Move WSL to another drive (`wsl --manage --move`, WSL 2.3+, undo moves back) | unit tests (distro, path, drive, space, version, game folders); mock UI flow, undo, same-drive and game-folder refusals, old-WSL message. Never run on this PC. | built, not run on a real distro |
+| C9 | Remove a leftover Store app (`PackageManager`, current user, not reversible, "Reinstall from Microsoft Store") | unit tests (deny list, allow-list re-check, framework/system refusal, fake remover); mock UI flow, History has no undo. Never run on this PC. | built, not run on a real package |
 
 All actions are refused during a protected game session (the game itself or `vgc`). The Vanguard tray icon doesn't block them.
 

@@ -200,6 +200,8 @@ pub enum ChangeRequest {
     PowerMode { mode: String },          // "best_performance" | "balanced" | "best_efficiency"
     CleanCaches { ids: Vec<String> },    // allow-listed cache ids from get_caches only
     GpuPreference { exe: String, preference: String }, // "auto" | "power_saving" | "high_performance"
+    RemoveStoreApp { id: String },       // package name from get_store_apps only; cannot be undone (C9)
+    WslMove { distro: String, target: String }, // distro from the WSL scan, absolute folder on another fixed drive (C8)
 }
 
 #[derive(Serialize, serde::Deserialize, Clone, Debug)]
@@ -220,6 +222,9 @@ pub struct ChangeItem {
     pub detail: String,          // reason when skipped/failed, "" otherwise
     pub undo: Option<UndoData>,  // None = can't be undone (caches refill on their own)
     pub freed_bytes: u64,
+    // C9: package family name of a removed Store app, so the UI can offer "Reinstall from Microsoft Store".
+    #[serde(default, rename = "reinstallPfn")]
+    pub reinstall_pfn: Option<String>,
 }
 
 #[derive(Serialize, serde::Deserialize, Clone, Debug)]
@@ -236,6 +241,8 @@ pub enum UndoData {
     },
     PowerMode { previous: String },
     GpuPreference { exe: String, previous: Option<String> },
+    // C8: undo moves the distro back to the folder it came from.
+    WslMove { distro: String, original: String },
 }
 
 #[derive(Serialize, Clone, Debug)]

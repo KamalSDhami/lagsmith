@@ -311,3 +311,125 @@ test("gaming: per-app GPU preference goes through review and undo", async ({ pag
   await expect(page.getByRole("combobox", { name: "GPU preference for r5apex" })).toHaveValue("high_performance");
   await expectFits(page);
 });
+
+test("debloat: removal review says it cannot be undone; result offers reinstall, History has no undo", async ({ page }) => {
+  await open(page);
+  await nav(page, "Debloat");
+  await page.getByRole("button", { name: "Remove Get Help" }).click();
+
+  const d = sheet(page);
+  await expect(d.getByRole("heading", { name: "Review: Remove Get Help" })).toBeVisible();
+  await expect(d.getByRole("note")).toContainText("This cannot be undone");
+  await expect(d.getByRole("note")).toContainText("Microsoft Store");
+  await d.getByRole("button", { name: "Apply changes" }).click();
+
+  const r = d.getByTestId("results");
+  await expect(r).toContainText("Removed Get Help");
+  const link = r.getByRole("link", { name: "Reinstall from Microsoft Store" });
+  await expect(link).toHaveAttribute("href", "ms-windows-store://pdp/?PFN=Microsoft.GetHelp_8wekyb3d8bbwe");
+  await expect(d.getByRole("button", { name: "Undo" })).toHaveCount(0);
+  await d.getByRole("button", { name: "Close" }).click();
+
+  await expect(page.getByTestId("app-Microsoft.GetHelp")).toHaveCount(0);
+  await expect(page.getByTestId("app-Clipchamp.Clipchamp")).toBeVisible();
+  await expectFits(page);
+
+  await nav(page, "History & Undo");
+  const set = page.getByRole("list", { name: "Change history" }).getByRole("listitem").first();
+  await expect(set).toContainText("Remove Get Help");
+  await expect(set.getByRole("button", { name: "Undo" })).toBeDisabled();
+  await set.getByRole("button", { name: /Show details/ }).click();
+  await expect(set.getByRole("link", { name: "Reinstall from Microsoft Store" })).toBeVisible();
+});
+
+test("debloat: refused while a protected game runs, app stays listed", async ({ page }) => {
+  await open(page, "fixture=gameRunning");
+  await nav(page, "Debloat");
+  await page.getByRole("button", { name: "Remove Clipchamp" }).click();
+  await sheet(page).getByRole("button", { name: "Apply changes" }).click();
+  await expect(sheet(page).getByRole("alert")).toContainText("VALORANT is running");
+  await sheet(page).getByRole("button", { name: "Close" }).click();
+  await expect(page.getByTestId("app-Clipchamp.Clipchamp")).toBeVisible();
+  await expectHistoryEmpty(page);
+});
+
+test("storage: move a WSL distro to D:, review warns about shutdown, undo moves it back", async ({ page }) => {
+  await open(page);
+  await nav(page, "Storage Cleaner");
+  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("button", { name: "Move Ubuntu" }).click();
+
+  const form = page.getByRole("dialog", { name: "Move WSL distro" });
+  await expect(form).toContainText("Move Ubuntu to another drive");
+  await expect(form).toContainText("D: 26.9 GB free");
+  await expect(form.getByLabel("Folder")).toHaveValue("D:\\WSL\\Ubuntu");
+  await form.getByRole("button", { name: "Review move" }).click();
+
+  const d = sheet(page);
+  await expect(d.getByRole("note")).toContainText("shut down Ubuntu first");
+  await expect(d).toContainText("To D:\\WSL\\Ubuntu");
+  await d.getByRole("button", { name: "Apply changes" }).click();
+  await expect(d.getByTestId("results")).toContainText("Moved WSL distro Ubuntu to D:\\WSL\\Ubuntu");
+  await expect(page.getByTitle("D:\\WSL\\Ubuntu\\ext4.vhdx").first()).toBeVisible({ timeout: 10_000 });
+
+  await d.getByRole("button", { name: "Undo" }).click();
+  await expect(d.getByRole("heading", { name: "Changes undone" })).toBeVisible();
+  await d.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByTitle("D:\\WSL\\Ubuntu\\ext4.vhdx").first()).toHaveCount(0);
+  await expect(page.getByTitle("C:\\Users\\Kamal\\AppData\\Local\\wsl\\Ubuntu\\ext4.vhdx").first()).toBeVisible({ timeout: 10_000 });
+  await expectFits(page);
+});
+
+test("storage: WSL move refuses the same drive and a game folder", async ({ page }) => {
+  await open(page);
+  await nav(page, "Storage Cleaner");
+  await page.getByRole("tab", { name: /Move data/ }).click();
+  for (const [target, why] of [
+    ["E:\\WSL\\Ubuntu", "isn't a local fixed drive"],
+    ["D:\\Riot Games\\wsl", "never moves WSL into game"],
+  ]) {
+    await page.getByRole("button", { name: "Move Ubuntu" }).click();
+    const form = page.getByRole("dialog", { name: "Move WSL distro" });
+    await form.getByLabel("Folder").fill(target);
+    await form.getByRole("button", { name: "Review move" }).click();
+    const d = sheet(page);
+    await d.getByRole("button", { name: "Apply changes" }).click();
+    await expect(d.getByTestId("results")).toContainText(why);
+    await expect(d.getByTestId("results")).toContainText("Failed");
+    await expect(d.getByRole("button", { name: "Undo" })).toHaveCount(0);
+    await d.getByRole("button", { name: "Close" }).click();
+  }
+});
+
+test("storage: old WSL gets an honest update message", async ({ page }) => {
+  await open(page, "fixture=oldwsl");
+  await nav(page, "Storage Cleaner");
+  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("button", { name: "Move Ubuntu" }).click();
+  await page.getByRole("dialog", { name: "Move WSL distro" }).getByRole("button", { name: "Review move" }).click();
+  const d = sheet(page);
+  await d.getByRole("button", { name: "Apply changes" }).click();
+  await expect(d.getByTestId("results")).toContainText("WSL 2.3 or newer");
+  await expect(d.getByTestId("results")).toContainText("wsl --update");
+});
+
+test("storage: WSL move is refused while a protected game runs", async ({ page }) => {
+  await open(page, "fixture=gameRunning");
+  await nav(page, "Storage Cleaner");
+  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("button", { name: "Move Ubuntu" }).click();
+  await page.getByRole("dialog", { name: "Move WSL distro" }).getByRole("button", { name: "Review move" }).click();
+  await sheet(page).getByRole("button", { name: "Apply changes" }).click();
+  await expect(sheet(page).getByRole("alert")).toContainText("VALORANT is running");
+});
+
+test("storage: the move form blocks a drive without enough space", async ({ page }) => {
+  await open(page);
+  await nav(page, "Storage Cleaner");
+  await page.getByRole("tab", { name: /Move data/ }).click();
+  await page.getByRole("button", { name: "Move Ubuntu" }).click();
+  const form = page.getByRole("dialog", { name: "Move WSL distro" });
+  await form.getByLabel("Folder").fill("C:\\WSL\\Ubuntu");
+  await expect(form.getByRole("alert")).toContainText("doesn't have enough free space");
+  await expect(form.getByRole("button", { name: "Review move" })).toBeDisabled();
+});

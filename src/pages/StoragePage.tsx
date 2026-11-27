@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Lock } from "lucide-react";
-import type { CacheItem, DiskUsage, SizedItem } from "../types";
+import type { CacheItem, DiskUsage, Drive, SizedItem } from "../types";
 import { useSys } from "../lib/useSystemData";
 import { Page, Empty } from "../components/Page";
 import { Card } from "../components/ui/card";
@@ -10,6 +10,7 @@ import { Checkbox } from "../components/ui/checkbox";
 import { Progress } from "../components/ui/progress";
 import { Tabs } from "../components/ui/tabs";
 import { Skeleton } from "../components/ui/skeleton";
+import { Dialog } from "../components/ui/dialog";
 import { InlineError, LoadingRows } from "../components/Show";
 import { useReview } from "../components/Review";
 import { formatGB } from "../lib/format";
@@ -27,6 +28,8 @@ interface Row {
   bytes: number;
   /** Only allow-listed caches can be cleaned. */
   cacheId?: string;
+  /** WSL distro name: this row can be moved to another drive. */
+  wslDistro?: string;
   locked?: string;
 }
 
@@ -57,12 +60,90 @@ function usageRows(u: DiskUsage): Row[] {
       name: i.name,
       path: i.displayPath,
       bytes: i.bytes,
-      locked: isProtected(i.name, i.displayPath) ? PROTECTED_REASON : "Not available yet",
+      wslDistro: p === "wsl" ? i.name : undefined,
+      locked: isProtected(i.name, i.displayPath) ? PROTECTED_REASON : p === "wsl" ? undefined : "Not available yet",
     }));
   return [...mk("move", u.wslDisks, "wsl"), ...mk("move", u.appData, "app"), ...mk("files", u.userFolders, "user")];
 }
 
 const sum = (xs: { bytes: number }[]) => xs.reduce((n, x) => n + x.bytes, 0);
+
+/** Asks where to move a WSL distro, then hands off to the review sheet. Rust re-checks every rule. */
+function MoveDialog({
+  row,
+  drives,
+  onClose,
+  onReview,
+}: {
+  row: Row | null;
+  drives: Drive[];
+  onClose: () => void;
+  onReview: (distro: string, target: string, bytes: number) => void;
+}) {
+  const others = drives.filter((d) => !d.isSystem);
+  const [target, setTarget] = useState("");
+  useEffect(() => {
+    if (row) setTarget(others[0] ? `${others[0].letter}\\WSL\\${row.wslDistro}` : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row]);
+  const letter = target.trim().slice(0, 2).toUpperCase();
+  const drive = drives.find((d) => d.letter === letter);
+  const valid = /^[A-Za-z]:\\[^\\/:*?"<>|]+/.test(target.trim());
+  const needs = row ? row.bytes + 2 ** 30 : 0;
+  const roomy = !drive || drive.freeBytes >= needs;
+  return (
+    <Dialog open={!!row} onClose={onClose} title="Move WSL distro" className="w-[30rem]">
+      {row && (
+        <form
+          className="p-6"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (valid && roomy) onReview(row.wslDistro!, target.trim(), row.bytes);
+          }}
+        >
+          <h2 className="text-[1.125rem] font-semibold">Move {row.wslDistro} to another drive</h2>
+          <p className="mt-1 text-[0.875rem] text-muted">
+            Its disk ({formatGB(row.bytes)}) moves to the folder you choose. The folder must be new or empty, on a different drive.
+          </p>
+          {others.length === 0 ? (
+            <p role="status" className="mt-3 text-[0.875rem]">
+              No second local drive was found, so there is nowhere to move it.
+            </p>
+          ) : (
+            <>
+              <label className="mt-4 block text-[0.8125rem] font-medium" htmlFor="wsl-target">
+                Folder
+              </label>
+              <input
+                id="wsl-target"
+                value={target}
+                onChange={(e) => setTarget(e.target.value)}
+                placeholder={"D:\\WSL\\Ubuntu"}
+                className="mt-1 h-9 w-full rounded-lg border border-line bg-surface px-2.5 text-[0.875rem]"
+              />
+              <p className="mt-1 text-[0.8125rem] text-muted">
+                {others.map((d) => `${d.letter} ${formatGB(d.freeBytes)} free`).join(" · ")}
+              </p>
+              {!roomy && (
+                <p role="alert" className="mt-2 text-[0.8125rem] text-danger">
+                  {drive?.letter} doesn't have enough free space (needs about {formatGB(needs)}).
+                </p>
+              )}
+            </>
+          )}
+          <div className="mt-5 flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={!valid || !roomy || others.length === 0}>
+              Review move
+            </Button>
+          </div>
+        </form>
+      )}
+    </Dialog>
+  );
+}
 
 function FillingCard() {
   const { data, load } = useSys();
@@ -119,6 +200,7 @@ export function StoragePage() {
   const { data, load } = useSys();
   const review = useReview();
   const [tab, setTab] = useState<Tab>("all");
+  const [moving, setMoving] = useState<Row | null>(null);
   const caches = data.get_caches;
   const usage = data.get_disk_usage;
   const st = data.get_storage;
@@ -158,6 +240,16 @@ export function StoragePage() {
         ...(sys.length ? [{ label: "System caches", items: sys.map((r) => ({ label: r.name, detail: r.path, bytes: r.bytes })) }] : []),
       ],
       changes: [{ kind: "cleanCaches", ids: chosen.map((r) => r.cacheId!) }],
+    });
+  };
+
+  const reviewMove = (distro: string, target: string, bytes: number) => {
+    setMoving(null);
+    review({
+      title: `Move ${distro} to another drive`,
+      warning: `Lagsmith will shut down ${distro} first (anything running in it stops; save your work). Moving a large disk can take several minutes. You can undo it from History to move it back.`,
+      groups: [{ label: "WSL distro to move", items: [{ label: distro, detail: `To ${target}`, bytes }] }],
+      changes: [{ kind: "wslMove", distro, target }],
     });
   };
 
@@ -241,10 +333,15 @@ export function StoragePage() {
                     <div className="truncate text-[0.9375rem] font-medium">{r.name}</div>
                     <div className="truncate text-[0.8125rem] text-muted" title={r.path}>
                       {r.locked && r.locked !== "Not available yet" ? r.locked : TAB_NOTE[r.tab]}
-                      {r.cacheId ? "" : " · Not available yet"}
+                      {r.cacheId || r.wslDistro ? "" : " · Not available yet"}
                     </div>
                   </div>
                   <span className="text-[0.9375rem] tabular-nums">{formatGB(r.bytes)}</span>
+                  {r.wslDistro && !r.locked && (
+                    <Button variant="outline" size="sm" onClick={() => setMoving(r)} aria-label={`Move ${r.wslDistro}`}>
+                      Move…
+                    </Button>
+                  )}
                   <Badge tone={r.cacheId ? "success" : r.tab === "move" ? "info" : "neutral"} className="w-16 justify-center">
                     {r.cacheId ? "Safe" : r.tab === "move" ? "Move" : "Yours"}
                   </Badge>
@@ -279,6 +376,7 @@ export function StoragePage() {
         </Card>
         <FillingCard />
       </div>
+      <MoveDialog row={moving} drives={st.status === "ok" ? st.data.drives : []} onClose={() => setMoving(null)} onReview={reviewMove} />
     </Page>
   );
 }
