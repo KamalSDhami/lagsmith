@@ -5,6 +5,9 @@ $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
+& (Join-Path $PSScriptRoot "stage-helper.ps1") -Profile debug
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 $app = Start-Process powershell -ArgumentList "-NoProfile", "-Command", "npm run tauri dev -- -- -j 3" -PassThru -WindowStyle Hidden
 try {
     $deadline = (Get-Date).AddMinutes(10)

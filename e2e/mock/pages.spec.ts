@@ -56,7 +56,8 @@ test("crash detective", async ({ page }) => {
   await expect(page.getByText("vgm.exe")).toBeVisible();
   await expect(page.getByText("in flutter_windows.dll")).toBeVisible();
   await expect(page.getByText("112526-10921-01.dmp")).toBeVisible();
-  await expect(page.getByText(/Naming the driver in a dump needs admin rights/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Analyze dumps" })).toBeEnabled();
+  await expect(page.getByText(/coming next build/)).toHaveCount(0);
   await expect(page.getByText("Riot Vanguard (vgk)")).toBeVisible();
   await expect(page.getByRole("img", { name: /days with events/ })).toBeVisible();
   await expectFits(page);
@@ -135,9 +136,10 @@ test("system repair", async ({ page }) => {
   await open(page);
   await nav(page, "System Repair");
   await expect(page.getByText("Repaired", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run SFC" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Run DISM" })).toBeDisabled();
-  await expect(page.getByText(/Available in the next build/).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Run SFC" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Run DISM" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Create Restore Point" })).toBeEnabled();
+  await expect(page.getByText(/Available in the next build/)).toHaveCount(0);
   await expectFits(page);
 });
 

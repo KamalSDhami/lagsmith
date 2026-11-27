@@ -1,12 +1,14 @@
 import { test, expect } from "@playwright/test";
 import { open, nav, expectFits, showAllFindings } from "./helpers";
 
-test("two GPUs: dedicated is primary, both are listed", async ({ page }) => {
+test("two GPUs: dedicated is primary, both are listed, power-saving app triggers finding", async ({ page }) => {
   await open(page, "fixture=dualgpu");
   await expect(page.getByText("NVIDIA GeForce MX150")).toBeVisible();
   await expect(page.getByText("+1")).toBeVisible();
   // Dedicated primary GPU: no single-channel upgrade tip.
   await expect(page.getByText("Upgrade Tip")).toHaveCount(0);
+  await showAllFindings(page);
+  await expect(page.getByText("App set to power-saving graphics")).toBeVisible();
   await page.getByRole("button", { name: /Show all graphics adapters/ }).click();
   await expect(page.getByRole("dialog", { name: "Graphics adapters" })).toContainText("Used by games");
   await expect(page.getByRole("dialog", { name: "Graphics adapters" })).toContainText("Used for the display");

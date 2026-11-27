@@ -25,8 +25,10 @@ pub fn is_game_session(exe: &str) -> bool {
     let e = exe.to_ascii_lowercase();
     matches!(e.as_str(),
         "valorant.exe" | "valorant-win64-shipping.exe" | "vgc.exe" | "league of legends.exe"
-        | "easyanticheat.exe" | "easyanticheat_eos.exe" | "beservice.exe" | "beservice_x64.exe"
-        | "faceitservice.exe" | "gamemon.des" | "gamemon64.des")
+        | "easyanticheat.exe" | "easyanticheat_eos.exe" | "eaanticheat.gameservice.exe"
+        | "beservice.exe" | "beservice_x64.exe" | "faceitservice.exe"
+        | "esea client.exe" | "eseaclient.exe" | "xigncode.exe" | "xxd-0.xem"
+        | "gamemon.des" | "gamemon64.des")
 }
 
 pub const GATE_MESSAGE: &str = "Close VALORANT and other anti-cheat games first. Lagsmith doesn't change anything while they run.";
@@ -66,6 +68,8 @@ mod tests {
         assert!(gate(&names(&["vgtray.exe", "RiotClientServices.exe"])).is_ok()); // tray and launcher don't block
         assert!(gate(&names(&["vgc.exe"])).is_err());
         assert!(gate(&names(&["EasyAntiCheat_EOS.exe"])).is_err());
+        assert!(gate(&names(&["EAAntiCheat.GameService.exe"])).is_err());
+        assert!(gate(&names(&["xigncode.exe"])).is_err());
     }
 
 

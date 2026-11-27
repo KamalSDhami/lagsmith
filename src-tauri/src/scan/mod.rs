@@ -2,6 +2,7 @@ pub mod anticheat;
 pub mod diskusage;
 pub mod drivers;
 pub mod dumps;
+pub mod gpuprefs;
 pub mod hardware;
 pub mod memory;
 pub mod protected;

@@ -65,13 +65,17 @@ export interface StoreApp { id: string; name: string; publisher: string }
 
 export interface StartupApp { name: string; command: string; source: string; enabled: boolean; id: string; canToggle: boolean }
 
+export type GpuPref = "auto" | "power_saving" | "high_performance";
+export interface GpuAppPreference { name: string; exe: string; preference: GpuPref; source: string }
+
 // Phase 2: actions. All go through apply_changes (validated in Rust, refused while a protected game runs).
 export type ChangeRequest =
   | { kind: "startupEnabled"; id: string; enabled: boolean }
   | { kind: "gameMode"; on: boolean }
   | { kind: "gameBarCapture"; on: boolean }
   | { kind: "powerMode"; mode: "best_performance" | "balanced" | "best_efficiency" }
-  | { kind: "cleanCaches"; ids: string[] };
+  | { kind: "cleanCaches"; ids: string[] }
+  | { kind: "gpuPreference"; exe: string; preference: GpuPref };
 
 export interface ChangeItem { description: string; status: "done" | "skipped" | "failed"; detail: string; undo: unknown | null; freedBytes: number }
 export interface ChangeSet { id: string; time: string; title: string; items: ChangeItem[]; undone: boolean }
@@ -104,6 +108,7 @@ export type Commands = {
   list_crash_dumps: CrashDump[];
   get_disk_usage: DiskUsage;
   get_store_apps: StoreApp[];
+  get_gpu_preferences: GpuAppPreference[];
   get_history: ChangeSet[];
 };
 
@@ -112,3 +117,33 @@ export type ActionCommands = {
   apply_changes: { args: { title: string; changes: ChangeRequest[] }; result: ChangeSet };
   undo_change: { args: { id: string }; result: ChangeSet };
 };
+
+// Phase 3: elevated admin tasks (run_admin_task). Progress streams via Channel<AdminEvent>.
+export type AdminTask = "analyze-dumps" | "sfc" | "dism-restorehealth" | "restore-point";
+
+export interface AdminEvent {
+  stage: string;
+  percent: number | null;
+}
+
+export interface DumpAnalysis {
+  file: string;
+  bugcheckCode: string;
+  parameters: string[];
+  suspectModule: string | null;
+  suspectFrom: "loaded" | "unloaded" | null;
+  drivers: string[];
+  driversLabel: "cause" | "drivers present";
+  loadedModules: number;
+  unloadedModules: number;
+  error: string | null;
+}
+
+export interface AdminResult {
+  task: AdminTask;
+  ok: boolean;
+  outcome: string;
+  message: string;
+  exitCode: number | null;
+  dumps: DumpAnalysis[];
+}

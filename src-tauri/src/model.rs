@@ -178,6 +178,16 @@ pub struct StartupApp {
     pub can_toggle: bool,        // false for HKLM (needs admin) and for anti-cheat/game entries (never)
 }
 
+/// C4: per-app Windows graphics preference (`HKCU\Software\Microsoft\DirectX\UserGpuPreferences`).
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuAppPreference {
+    pub name: String,            // display name or exe stem
+    pub exe: String,             // full executable path
+    pub preference: String,      // "auto" | "power_saving" | "high_performance"
+    pub source: String,          // "Windows graphics settings" | "Installed app"
+}
+
 // ---------- Phase 2: actions. Every change goes through `apply_changes`, is validated in Rust,
 // ---------- refused while a protected game is running, and recorded in History for undo.
 
@@ -189,6 +199,7 @@ pub enum ChangeRequest {
     GameBarCapture { on: bool },
     PowerMode { mode: String },          // "best_performance" | "balanced" | "best_efficiency"
     CleanCaches { ids: Vec<String> },    // allow-listed cache ids from get_caches only
+    GpuPreference { exe: String, preference: String }, // "auto" | "power_saving" | "high_performance"
 }
 
 #[derive(Serialize, serde::Deserialize, Clone, Debug)]
@@ -224,6 +235,7 @@ pub enum UndoData {
         previous_store: Option<bool>,
     },
     PowerMode { previous: String },
+    GpuPreference { exe: String, previous: Option<String> },
 }
 
 #[derive(Serialize, Clone, Debug)]

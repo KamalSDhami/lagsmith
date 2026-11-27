@@ -34,3 +34,6 @@ docs/references/ASSET-desktop-pc.webp
 test-results/
 playwright-report/
 CONDOM-REPORT.md
+
+# Staged sidecar binaries (built by scripts/stage-helper.ps1)
+src-tauri/binaries/

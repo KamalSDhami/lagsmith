@@ -8,7 +8,16 @@ import { Skeleton } from "./ui/skeleton";
 import { cn } from "../lib/cn";
 import { ICON_STROKE, type Page } from "../pages/nav";
 
-const SOURCES: Cmd[] = ["get_stability", "get_storage", "get_hardware", "get_startup", "get_security", "get_system", "get_anticheat"];
+const SOURCES: Cmd[] = [
+  "get_stability",
+  "get_storage",
+  "get_hardware",
+  "get_startup",
+  "get_security",
+  "get_system",
+  "get_anticheat",
+  "get_gpu_preferences",
+];
 const COLLAPSED = 3;
 
 const tile: Record<Severity, string> = {
@@ -79,6 +88,7 @@ export function TopFindings({ data, retry, onOpen }: { data: SystemData; retry: 
         security: ok("get_security"),
         system: ok("get_system"),
         anticheat: ok("get_anticheat"),
+        gpuPreferences: ok("get_gpu_preferences"),
       });
   const shown = expanded ? findings : findings.slice(0, COLLAPSED);
   const hidden = findings.length > COLLAPSED;

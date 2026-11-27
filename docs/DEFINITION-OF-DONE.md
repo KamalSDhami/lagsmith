@@ -25,7 +25,7 @@ A row is ticked only when an automated test proves it: `e2e/real` checks the rea
 | A15 | What fills C: (programs, WSL disk, app data, user folders, caches) | Storage Cleaner | real: VALORANT 35.2 GB, Ubuntu vhdx | done |
 | A16 | Real driver updates only | Dashboard | live: 2 real upgrades, fake ones dropped | done |
 | A17 | Leftover Store apps | Debloat | live: none installed on this PC; mock list | done |
-| A18 | Last SFC result | System Repair | real page; result is None once Windows compresses the CBS log | partial |
+| A18 | Last SFC result | System Repair | real page; reads `CBS.log`, `CbsPersist_*.log`, and up to 4 `CbsPersist_*.cab` | done |
 | A19 | Game Mode, Game Bar capture | Gaming | real | done |
 | A20 | Secure Boot, TPM 2.0 (VAN9001/9003) | Gaming, Dashboard | real: Secure Boot on, TPM 2.0; mock: failing fixture | done |
 
@@ -42,7 +42,7 @@ Dashboard, Scan PC, Crash Detective, Hardware, Storage Cleaner, Startup Manager,
 | C1 | Startup toggle (HKCU) | live test on its own test entry; mock UI flow | done |
 | C2 | Game Mode, Game Bar capture | live apply and undo, restored exactly; mock | done |
 | C3 | Power mode | live apply and undo; mock | done |
-| C4 | GPU preference per game | not built (this PC has one GPU); designs exist | todo |
+| C4 | GPU preference per game | `get_gpu_preferences` + `GpuPreference` action/undo; unit + mock UI + dual-GPU finding | done |
 | C5 | Clean user caches (handle-based, never follows links) | unit tests on temp folders; mock UI flow. Not yet run on real caches. | done (unit) |
 | C6 | Run SFC and DISM with live progress | needs the admin helper | **todo** |
 | C7 | Restore point before changes | needs the admin helper | **todo** |

@@ -112,6 +112,7 @@ pub(crate) fn apply_one(change: &ChangeRequest) -> Vec<ChangeItem> {
             }
             ids.iter().map(|id| clean_cache(id)).collect()
         }
+        ChangeRequest::GpuPreference { exe, preference } => vec![gpu_preference(exe, preference)],
     }
 }
 
@@ -122,6 +123,7 @@ pub(crate) fn undo_one(undo: &UndoData) -> ChangeItem {
         UndoData::GameMode { previous } => game_mode(*previous, false),
         UndoData::GameBarCapture { previous, previous_store } => game_bar(*previous, *previous_store, false),
         UndoData::PowerMode { previous } => power(previous, false),
+        UndoData::GpuPreference { exe, previous } => undo_gpu_preference(exe, previous.as_deref()),
     }
 }
 
@@ -188,6 +190,44 @@ fn power(mode: &str, record_undo: bool) -> ChangeItem {
         settings::set_overlay(settings::mode_guid(mode).ok_or("Unknown power mode")?)?;
         Ok(record_undo.then(|| UndoData::PowerMode { previous: previous.into() }))
     })();
+    item(description, result)
+}
+
+fn gpu_preference(exe: &str, preference: &str) -> ChangeItem {
+    let name = Path::new(exe.trim().trim_matches('"').trim())
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "app".into());
+    let label = match preference {
+        "power_saving" => Some("Power saving"),
+        "high_performance" => Some("High performance"),
+        "auto" => Some("Let Windows decide"),
+        _ => None,
+    };
+    let Some(label) = label else {
+        return item(format!("Set GPU preference for {name}"), Err("Unknown GPU preference".into()));
+    };
+    let description = format!("Set GPU preference for {name} to {label}");
+    match settings::apply_gpu_pref(exe, preference) {
+        Ok(settings::GpuPrefApply::Skipped) => skipped(description, "Already set"),
+        Ok(settings::GpuPrefApply::Applied { exe, previous }) => {
+            item(description, Ok(Some(UndoData::GpuPreference { exe, previous })))
+        }
+        Err(e) => item(description, Err(e)),
+    }
+}
+
+fn undo_gpu_preference(exe: &str, previous: Option<&str>) -> ChangeItem {
+    let name = Path::new(exe)
+        .file_name()
+        .map(|s| s.to_string_lossy().into_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "app".into());
+    let description = format!("Restored GPU preference for {name}");
+    let result = settings::validate_gpu_exe(exe)
+        .and_then(|clean| settings::write_gpu_pref_raw(&clean, previous))
+        .map(|()| None);
     item(description, result)
 }
 

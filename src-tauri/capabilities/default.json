@@ -17,6 +17,7 @@
     "allow-list-crash-dumps",
     "allow-get-disk-usage",
     "allow-get-store-apps",
+    "allow-get-gpu-preferences",
     "allow-get-history",
     "allow-apply-changes",
     "allow-undo-change",

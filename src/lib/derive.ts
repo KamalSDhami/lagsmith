@@ -1,4 +1,4 @@
-import type { AntiCheat, Commands, Crash, Drive, Gpu, Hardware, Power, Stability, StartupApp, SystemState } from "../types";
+import type { AntiCheat, Commands, Crash, Drive, Gpu, GpuAppPreference, Hardware, Power, Stability, StartupApp, SystemState } from "../types";
 import { hasRiotGame, valorantRequirements, VALORANT_NOTE } from "./requirements";
 import type { Page } from "../pages/nav";
 import { formatGB, formatRam, isoDay, plural } from "./format";
@@ -31,6 +31,10 @@ export const LOW_DISK_RATIO = 0.15;
 
 export function realGpus(h: Hardware): Gpu[] {
   return h.gpus.filter((g) => g.kind !== "software");
+}
+
+export function hasDualGpu(h: Hardware): boolean {
+  return h.gpus.some((g) => g.kind === "dedicated") && h.gpus.some((g) => g.kind === "integrated");
 }
 
 /** Dedicated GPU if there is one, else integrated, else whatever exists. */
@@ -77,7 +81,7 @@ export interface Finding {
   action?: { label: string; page: Page };
 }
 
-type Partial7 = {
+type Partial8 = {
   system?: SystemState;
   anticheat?: AntiCheat[];
   hardware?: Hardware;
@@ -85,10 +89,11 @@ type Partial7 = {
   stability?: Stability;
   startup?: StartupApp[];
   security?: Commands["get_security"];
+  gpuPreferences?: GpuAppPreference[];
 };
 
 /** Findings derived from whatever data is available, most severe first. */
-export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
+export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
   const out: Finding[] = [];
 
   if (d.stability) {
@@ -148,6 +153,21 @@ export function deriveFindings(d: Partial7, now = new Date()): Finding[] {
       source: "Windows power settings",
       action: { label: "Fix in Gaming Mode", page: "gaming" },
     });
+  }
+
+  if (d.hardware && hasDualGpu(d.hardware) && d.gpuPreferences) {
+    const wrong = d.gpuPreferences.filter((p) => p.preference === "power_saving");
+    if (wrong.length > 0) {
+      out.push({
+        id: "gpu-pref",
+        severity: "warning",
+        title: "App set to power-saving graphics",
+        body: `${wrong[0].name} is pinned to integrated graphics on a dual-GPU PC. Switch it to High performance.`,
+        evidence: plural(wrong.length, "app", "apps"),
+        source: "Windows graphics settings",
+        action: { label: "Fix in Gaming Mode", page: "gaming" },
+      });
+    }
   }
 
   if (d.hardware && needsRamUpgradeTip(d.hardware)) {

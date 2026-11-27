@@ -37,6 +37,8 @@ async fn list_crash_dumps() -> Result<Vec<CrashDump>, String> { blocking(scan::d
 async fn get_disk_usage() -> Result<DiskUsage, String> { blocking(scan::diskusage::read).await }
 #[tauri::command]
 async fn get_store_apps() -> Result<Vec<StoreApp>, String> { blocking(scan::storeapps::read).await }
+#[tauri::command]
+async fn get_gpu_preferences() -> Result<Vec<GpuAppPreference>, String> { blocking(scan::gpuprefs::read).await }
 
 #[tauri::command]
 async fn get_history() -> Result<Vec<ChangeSet>, String> { blocking(actions::get_history).await }
@@ -68,7 +70,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             get_hardware, get_storage, get_caches, get_stability, get_startup,
             get_memory, get_security, check_driver_updates,
-            get_system, get_anticheat, list_crash_dumps, get_disk_usage, get_store_apps,
+            get_system, get_anticheat, list_crash_dumps, get_disk_usage, get_store_apps, get_gpu_preferences,
             get_history, apply_changes, undo_change, run_admin_task
         ])
         .run(tauri::generate_context!())

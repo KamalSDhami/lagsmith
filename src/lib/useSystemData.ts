@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import type { Commands } from "../types";
-import { call, errorMessage } from "./api";
+import type { AdminEvent, AdminResult, AdminTask, Commands } from "../types";
+import { call, errorMessage, runAdminTask } from "./api";
 
 export type Cmd = keyof Commands;
 
@@ -26,6 +26,7 @@ const ALL: Cmd[] = [
   "list_crash_dumps",
   "get_disk_usage",
   "get_store_apps",
+  "get_gpu_preferences",
   "get_history",
 ];
 
@@ -38,6 +39,7 @@ const ON_START: Cmd[] = [
   "get_security",
   "get_system",
   "get_anticheat",
+  "get_gpu_preferences",
   "check_driver_updates",
 ];
 
@@ -52,7 +54,7 @@ export interface ScanStep {
  */
 export const SCAN_STEPS: ScanStep[] = [
   { label: "Reading crash history", cmds: ["get_stability", "list_crash_dumps"] },
-  { label: "Checking hardware", cmds: ["get_hardware", "get_system", "get_security", "get_anticheat"] },
+  { label: "Checking hardware", cmds: ["get_hardware", "get_system", "get_security", "get_anticheat", "get_gpu_preferences"] },
   { label: "Measuring storage and caches", cmds: ["get_storage", "get_caches"] },
   { label: "Checking memory", cmds: ["get_memory"] },
   { label: "Checking startup and Store apps", cmds: ["get_startup", "get_store_apps"] },
@@ -68,14 +70,35 @@ export interface ScanRun {
   cmds: Partial<Record<Cmd, ScanCmdState>>;
 }
 
+export interface AdminRunResult {
+  result: AdminResult;
+  finishedAt: string;
+}
+
+export interface AdminState {
+  running: AdminTask | null;
+  event: AdminEvent | null;
+  results: Partial<Record<AdminTask, AdminRunResult>>;
+  error: { task: AdminTask; message: string } | null;
+}
+
 function initial(): SystemData {
   return Object.fromEntries(ALL.map((c) => [c, { status: ON_START.includes(c) ? "loading" : "idle" }])) as SystemData;
 }
+
+const INITIAL_ADMIN: AdminState = {
+  running: null,
+  event: null,
+  results: {},
+  error: null,
+};
 
 /** Loads read commands in parallel; each one succeeds or fails on its own. */
 export function useSystemData() {
   const [state, setState] = useState<SystemData>(initial);
   const [scan, setScan] = useState<ScanRun | null>(null);
+  const [admin, setAdmin] = useState<AdminState>(INITIAL_ADMIN);
+  const adminRunningRef = useRef(false);
   // Per-command request counter so a slow, older response never overwrites a newer one.
   const seq = useRef<Record<string, number>>({});
   const stateRef = useRef(state);
@@ -126,11 +149,49 @@ export function useSystemData() {
   /** IPC calls can't be aborted; cancelling stops tracking and leaves the page. Results that arrive still update the data. */
   const cancelScan = useCallback(() => setScan((r) => (r && !r.finishedAt ? { ...r, cancelled: true } : r)), []);
 
+  const startAdminTask = useCallback(
+    (task: AdminTask) => {
+      if (adminRunningRef.current) return;
+      adminRunningRef.current = true;
+      setAdmin((prev) => ({
+        ...prev,
+        running: task,
+        event: { stage: "Waiting for admin permission…", percent: null },
+        error: null,
+      }));
+      void runAdminTask(task, (e) => {
+        setAdmin((prev) => (prev.running === task ? { ...prev, event: e } : prev));
+      }).then(
+        (result) => {
+          adminRunningRef.current = false;
+          setAdmin((prev) => ({
+            ...prev,
+            running: null,
+            event: null,
+            results: { ...prev.results, [task]: { result, finishedAt: new Date().toISOString() } },
+            error: null,
+          }));
+          if (task === "sfc") void load("get_system");
+        },
+        (err: unknown) => {
+          adminRunningRef.current = false;
+          setAdmin((prev) => ({
+            ...prev,
+            running: null,
+            event: null,
+            error: { task, message: errorMessage(err) },
+          }));
+        },
+      );
+    },
+    [load],
+  );
+
   useEffect(() => {
     ON_START.forEach((c) => void load(c));
   }, [load]);
 
-  return { data: state, load, ensure, scan, runScan, cancelScan };
+  return { data: state, load, ensure, scan, runScan, cancelScan, admin, startAdminTask };
 }
 
 export type Sys = ReturnType<typeof useSystemData>;

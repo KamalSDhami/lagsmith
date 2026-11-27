@@ -50,6 +50,7 @@ export function useRefreshAfterChange() {
     void load("get_startup");
     void load("get_system");
     void load("get_storage");
+    void load("get_gpu_preferences");
     void load("get_history");
     if (cachesLoaded) void load("get_caches");
   }, [load, cachesLoaded]);

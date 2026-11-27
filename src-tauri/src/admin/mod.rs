@@ -60,6 +60,9 @@ pub fn run_admin_task(task: &str, on_event: impl Fn(AdminEvent)) -> Result<Admin
     let (name, pipe) = create_pipe()?;
     let process = launch(&helper, task, &name)?;
     let pid = unsafe { GetProcessId(process.0) };
+    if pid == 0 {
+        return Err("Couldn't identify the admin helper process".into());
+    }
     serve(&pipe, &process, Some(pid), on_event)
 }
 
@@ -188,8 +191,7 @@ pub(crate) fn serve(pipe: &Handle, process: &Handle, expected_pid: Option<u32>, 
     }
     if let Some(pid) = expected_pid {
         let mut client = 0u32;
-        let _ = unsafe { GetNamedPipeClientProcessId(pipe.0, &mut client) };
-        if client != pid {
+        if unsafe { GetNamedPipeClientProcessId(pipe.0, &mut client) }.is_err() || client != pid {
             return Err("An unexpected program connected to Lagsmith's admin pipe, so the task was stopped".into());
         }
     }

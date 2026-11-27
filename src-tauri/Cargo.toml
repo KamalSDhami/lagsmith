@@ -1,3 +1,6 @@
+[workspace]
+members = [".", "helper"]
+
 [package]
 name = "lagsmith"
 version = "0.1.0"
@@ -31,7 +34,6 @@ windows = { version = "=0.62.2", features = [
     "Win32_Security_Cryptography",
     "Win32_System_LibraryLoader",
     "Win32_System_Pipes",
-    "Win32_System_Restore",
     "Win32_Graphics_Dxgi",
     "Win32_Security_Authentication_Identity",
     "Win32_Storage_FileSystem",

@@ -1,4 +1,4 @@
-import type { ActionCommands, ChangeItem, ChangeRequest, ChangeSet, Commands, DayEvents } from "../types";
+import type { ActionCommands, AdminEvent, AdminResult, AdminTask, ChangeItem, ChangeRequest, ChangeSet, Commands, DayEvents, DumpAnalysis } from "../types";
 
 // Sample data for `npm run dev` and the Playwright mock tests. Development only: api.ts imports
 // this lazily behind import.meta.env.DEV, so it is not part of the release bundle.
@@ -7,7 +7,7 @@ import type { ActionCommands, ChangeItem, ChangeRequest, ChangeSet, Commands, Da
 // the contract requires but we never measured are marked "invented" below.
 //
 // URL switches (all composable):
-//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning (repeatable)
+//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing (repeatable)
 //   ?fail=<command>   make one command fail (repeatable)
 //   ?delay=<ms>       fixed delay for every command (default 300; driver check 1500, disk usage 2000)
 
@@ -179,6 +179,14 @@ function base(): Commands {
       { id: "Microsoft.GetHelp_8wekyb3d8bbwe", name: "Get Help", publisher: "Microsoft Corporation" },
       { id: "Clipchamp.Clipchamp_yxz26nhyzhsrt", name: "Clipchamp", publisher: "Microsoft Corporation" },
     ],
+    get_gpu_preferences: [
+      {
+        name: "VALORANT",
+        exe: "C:\\Riot Games\\VALORANT\\live\\ShooterGame\\Binaries\\Win64\\VALORANT-Win64-Shipping.exe",
+        preference: "auto",
+        source: "Installed app",
+      },
+    ],
     get_history: [],
   };
 }
@@ -196,6 +204,20 @@ const FIXTURES: Record<string, Fixture> = {
       driverVersion: "32.0.15.6094",
       driverDate: "2026-01-20T00:00:00Z",
     });
+    d.get_gpu_preferences = [
+      {
+        name: "VALORANT",
+        exe: "C:\\Riot Games\\VALORANT\\live\\ShooterGame\\Binaries\\Win64\\VALORANT-Win64-Shipping.exe",
+        preference: "power_saving",
+        source: "Windows graphics settings",
+      },
+      {
+        name: "Visual Studio Code",
+        exe: "C:\\Users\\Kamal\\AppData\\Local\\Programs\\Microsoft VS Code\\Code.exe",
+        preference: "auto",
+        source: "Installed app",
+      },
+    ];
   },
   noram: (d) => {
     d.get_hardware.ramSticks = 0;
@@ -224,6 +246,7 @@ const FIXTURES: Record<string, Fixture> = {
     d.list_crash_dumps = [];
     d.get_disk_usage = { programs: [], wslDisks: [], appData: [], userFolders: [] };
     d.get_store_apps = [];
+    d.get_gpu_preferences = [];
     d.get_system.wslDistros = [];
   },
   tpmfail: (d) => {
@@ -239,6 +262,7 @@ const FIXTURES: Record<string, Fixture> = {
     Object.assign(d.get_system.power, { onBattery: false, batteryPercent: 65, batteryDesignWh: 57, batteryFullWh: 48 });
   },
   gameRunning: () => {},
+  dismMissing: () => {},
   // This PC's live data (26 Nov): Best power efficiency while plugged in.
   powersave: (d) => {
     Object.assign(d.get_system.power, { mode: "best_efficiency", onBattery: false });
@@ -368,6 +392,25 @@ function applyOne(d: Commands, c: ChangeRequest): ChangeItem[] {
         return item(`Clear ${cache.name}`, "done", "Refills on its own when the tool runs", null, freed);
       });
     }
+    case "gpuPreference": {
+      const exe = c.exe.trim().replace(/^"+|"+$/g, "").trim().replace(/\//g, "\\");
+      const name = exe.split(/[\\/]/).pop() || exe;
+      const label = { auto: "Let Windows decide", power_saving: "Power saving", high_performance: "High performance" }[c.preference];
+      const existing = d.get_gpu_preferences.find((x) => x.exe.toLowerCase() === exe.toLowerCase());
+      if (existing) {
+        if (existing.preference === c.preference) return [item(`Set GPU preference for ${name} to ${label}`, "skipped", "Already set")];
+        const prev = existing.preference;
+        existing.preference = c.preference;
+        return [item(`Set GPU preference for ${name} to ${label}`, "done", "", { kind: "gpuPreference", exe, preference: prev })];
+      }
+      d.get_gpu_preferences.push({
+        name: name.replace(/\.exe$/i, ""),
+        exe,
+        preference: c.preference,
+        source: "Windows graphics settings",
+      });
+      return [item(`Set GPU preference for ${name} to ${label}`, "done", "", { kind: "gpuPreference", exe, preference: "auto" })];
+    }
   }
 }
 
@@ -399,4 +442,155 @@ export function mockAct<K extends keyof ActionCommands>(cmd: K, args: ActionComm
     set.undone = true;
     return structuredClone(set) as ActionCommands[K]["result"];
   });
+}
+
+// ---- Phase 3: elevated admin tasks (run_admin_task) ----
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const MOCK_DUMPS: Record<string, DumpAnalysis> = {
+  "112526-10921-01.dmp": {
+    file: "112526-10921-01.dmp",
+    bugcheckCode: "0x000000CE",
+    parameters: ["0xfffff8078e6cd9bd", "0x0000000000000010", "0xfffff8078e6cd9bd", "0x0000000000000002"],
+    suspectModule: "vgk.sys",
+    suspectFrom: "unloaded",
+    drivers: ["vgk.sys"],
+    driversLabel: "cause",
+    loadedModules: 148,
+    unloadedModules: 34,
+    error: null,
+  },
+  "112426-11078-01.dmp": {
+    file: "112426-11078-01.dmp",
+    bugcheckCode: "0x00000050",
+    parameters: ["0xffffb38f12c04000", "0x0000000000000000", "0xfffff8078e5a1240", "0x0000000000000002"],
+    suspectModule: "vgk.sys",
+    suspectFrom: "loaded",
+    drivers: ["vgk.sys"],
+    driversLabel: "cause",
+    loadedModules: 151,
+    unloadedModules: 19,
+    error: null,
+  },
+};
+
+export async function mockAdminTask(task: AdminTask, onEvent: (e: AdminEvent) => void): Promise<AdminResult> {
+  const step = delayFor("run_admin_task");
+  const fixtures = params().getAll("fixture");
+
+  await sleep(step);
+  if (shouldFail("run_admin_task")) {
+    throw new Error("Mock failure: run_admin_task");
+  }
+  if (fixtures.includes("gameRunning")) {
+    throw new Error("VALORANT is running. Lagsmith doesn't change anything while a protected game is open. Close the game and try again.");
+  }
+
+  const d = db();
+  switch (task) {
+    case "analyze-dumps": {
+      if (d.list_crash_dumps.length === 0) {
+        onEvent({ stage: "Checking C:\\Windows\\Minidump", percent: null });
+        await sleep(step);
+        return {
+          task,
+          ok: true,
+          outcome: "no_dumps",
+          message: "No crash dumps found in C:\\Windows\\Minidump.",
+          exitCode: null,
+          dumps: [],
+        };
+      }
+      const dumps: DumpAnalysis[] = [];
+      for (let i = 0; i < d.list_crash_dumps.length; i++) {
+        const name = d.list_crash_dumps[i].file.split("\\").pop() ?? d.list_crash_dumps[i].file;
+        onEvent({ stage: `Analysing ${name}`, percent: Math.round(((i + 1) / d.list_crash_dumps.length) * 100) });
+        await sleep(step);
+        dumps.push(
+          structuredClone(
+            MOCK_DUMPS[name] ?? {
+              file: name,
+              bugcheckCode: "0x00000000",
+              parameters: ["0x0", "0x0", "0x0", "0x0"],
+              suspectModule: null,
+              suspectFrom: null,
+              drivers: [],
+              driversLabel: "drivers present",
+              loadedModules: 0,
+              unloadedModules: 0,
+              error: null,
+            },
+          ),
+        );
+      }
+      return {
+        task,
+        ok: true,
+        outcome: "analyzed",
+        message: `Analyzed ${dumps.length} crash ${dumps.length === 1 ? "dump" : "dumps"}.`,
+        exitCode: null,
+        dumps,
+      };
+    }
+    case "sfc": {
+      onEvent({ stage: "Starting Windows Resource Protection scan", percent: 5 });
+      await sleep(step);
+      onEvent({ stage: "Verification 45% complete", percent: 45 });
+      await sleep(step);
+      onEvent({ stage: "Verification 100% complete", percent: 100 });
+      await sleep(step);
+      d.get_system.lastSfc = { time: new Date().toISOString(), outcome: "no_problems" };
+      return {
+        task,
+        ok: true,
+        outcome: "no_problems",
+        message: "Windows Resource Protection did not find any integrity violations.",
+        exitCode: 0,
+        dumps: [],
+      };
+    }
+    case "dism-restorehealth": {
+      onEvent({ stage: "Checking component store", percent: 25 });
+      await sleep(step);
+      onEvent({ stage: "Verifying image health", percent: 75 });
+      await sleep(step);
+      if (fixtures.includes("dismMissing")) {
+        return {
+          task,
+          ok: false,
+          outcome: "source_missing",
+          message: "DISM couldn't find repair source files (0x800F081F). Connect to Windows Update or provide a Windows image source.",
+          exitCode: 0x800f081f,
+          dumps: [],
+        };
+      }
+      onEvent({ stage: "The restore operation completed successfully.", percent: 100 });
+      await sleep(step);
+      return {
+        task,
+        ok: true,
+        outcome: "repaired",
+        message: "DISM completed the Windows image repair.",
+        exitCode: 0,
+        dumps: [],
+      };
+    }
+    case "restore-point": {
+      onEvent({ stage: "Creating restore point", percent: 40 });
+      await sleep(step);
+      onEvent({ stage: "Saving system snapshot", percent: 90 });
+      await sleep(step);
+      return {
+        task,
+        ok: true,
+        outcome: "created",
+        message: "Created a Windows restore point.",
+        exitCode: null,
+        dumps: [],
+      };
+    }
+  }
 }

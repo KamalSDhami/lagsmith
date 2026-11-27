@@ -24,11 +24,13 @@ pub fn valid_action(a: &str) -> bool {
 }
 
 /// Exactly `\\.\pipe\lagsmith-` followed by 32 lowercase hex digits.
+#[allow(dead_code)] // used by lagsmith-helper and unit tests
 pub fn valid_pipe_name(p: &str) -> bool {
     p.strip_prefix(r"\\.\pipe\lagsmith-").is_some_and(|hex| hex.len() == 32 && hex.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)))
 }
 
 /// The helper's whole command line: exactly `<action-id> <pipe-name>`.
+#[allow(dead_code)] // used by lagsmith-helper and unit tests
 pub fn parse_args(args: &[String]) -> Option<(&str, &str)> {
     match args {
         [action, pipe] if valid_action(action) && valid_pipe_name(pipe) => Some((action, pipe)),

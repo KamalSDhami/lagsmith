@@ -158,24 +158,94 @@ fn battery_capacity() -> (Option<f32>, Option<f32>) {
 // ---------- Last SFC run, from the CBS log
 
 const CHUNK: u64 = 16 << 20;
-// shortcut: reads at most 128 MB from the end of each log and 256 MB in total, and skips the
-// compressed .cab archives; an SFC run older than that shows as None.
+// shortcut: reads at most 128 MB from the end of each log and 256 MB in total, and checks up to
+// the 4 newest compressed CbsPersist_*.cab archives; an SFC run older than that shows as None.
 const MAX_PER_FILE: u64 = 128 << 20;
 const MAX_TOTAL: u64 = 256 << 20;
+const MAX_CABS: usize = 4;
 
-fn last_sfc() -> Option<SfcResult> {
-    let dir = PathBuf::from(std::env::var("WINDIR").ok()?).join(r"Logs\CBS");
-    // CBS.log is current; CbsPersist_<timestamp>.log are older rotations, newest name first.
-    let mut rotated: Vec<PathBuf> = std::fs::read_dir(&dir)
+struct TempDir(PathBuf);
+impl Drop for TempDir {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.0);
+    }
+}
+
+fn cbs_rotations(dir: &std::path::Path, ext: &str) -> Vec<PathBuf> {
+    let mut files: Vec<PathBuf> = std::fs::read_dir(dir)
+        .ok()
+        .into_iter()
+        .flatten()
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| {
+            p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("CbsPersist_"))
+                && p.extension().is_some_and(|x| x.eq_ignore_ascii_case(ext))
+        })
+        .collect();
+    files.sort();
+    files.reverse();
+    files
+}
+
+fn system32_dir() -> Option<PathBuf> {
+    let mut buf = [0u16; 260];
+    let len = unsafe { windows::Win32::System::SystemInformation::GetSystemDirectoryW(Some(&mut buf)) } as usize;
+    if len == 0 || len > buf.len() {
+        return None;
+    }
+    Some(PathBuf::from(super::utf16_to_string(&buf[..len])))
+}
+
+fn sfc_in_cab(cab: &PathBuf, idx: usize, budget: &mut u64) -> Option<SfcResult> {
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SEQ: AtomicU64 = AtomicU64::new(0);
+    let expand = system32_dir()?.join("expand.exe");
+    let seq = SEQ.fetch_add(1, Ordering::Relaxed);
+    let tmp = TempDir(std::env::temp_dir().join(format!("lagsmith-cbs-{}-{seq}-{idx}", std::process::id())));
+    std::fs::create_dir(&tmp.0).ok()?;
+    let status = Command::new(expand)
+        .arg(cab)
+        .arg("-F:*")
+        .arg(&tmp.0)
+        .creation_flags(windows::Win32::System::Threading::CREATE_NO_WINDOW.0)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status()
+        .ok()?;
+    if !status.success() {
+        return None;
+    }
+    let mut extracted: Vec<PathBuf> = std::fs::read_dir(&tmp.0)
         .ok()?
         .flatten()
         .map(|e| e.path())
-        .filter(|p| p.file_name().is_some_and(|n| n.to_string_lossy().starts_with("CbsPersist_")) && p.extension().is_some_and(|x| x == "log"))
+        .filter(|p| p.is_file())
         .collect();
-    rotated.sort();
-    rotated.reverse();
+    extracted.sort();
+    extracted.reverse();
+    extracted.into_iter().find_map(|p| sfc_in_file(&p, budget))
+}
+
+fn last_sfc() -> Option<SfcResult> {
+    let dir = super::known_folder(&windows::Win32::UI::Shell::FOLDERID_Windows)?.join(r"Logs\CBS");
+    // CBS.log is current; CbsPersist_<timestamp>.log are older plain rotations, newest first.
     let mut budget = MAX_TOTAL;
-    std::iter::once(dir.join("CBS.log")).chain(rotated).find_map(|p| sfc_in_file(&p, &mut budget))
+    if let Some(hit) = std::iter::once(dir.join("CBS.log"))
+        .chain(cbs_rotations(&dir, "log"))
+        .find_map(|p| sfc_in_file(&p, &mut budget))
+    {
+        return Some(hit);
+    }
+    // Windows compresses older rotations into CbsPersist_*.cab; check the newest few if plain logs had none.
+    cbs_rotations(&dir, "cab")
+        .into_iter()
+        .take(MAX_CABS)
+        .enumerate()
+        .find_map(|(i, cab)| (budget > 0).then(|| sfc_in_cab(&cab, i, &mut budget)).flatten())
 }
 
 fn sfc_in_file(path: &PathBuf, budget: &mut u64) -> Option<SfcResult> {
@@ -289,5 +359,28 @@ mod tests {
         assert_eq!(sfc_outcome(&two_runs).map(|r| r.1), Some("no_problems"));
 
         assert_eq!(sfc_outcome("2026-11-25 10:00:00, Info CBS no sfc here"), None);
+    }
+
+    #[test]
+    fn cbs_rotation_sorts_newest_first_by_extension() {
+        let dir = std::env::temp_dir().join(format!("lagsmith-cbs-sort-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        for name in [
+            "CbsPersist_20261124144000.cab",
+            "CbsPersist_20261125181620.cab",
+            "CbsPersist_20261126115244.log",
+            "other.cab",
+        ] {
+            std::fs::write(dir.join(name), b"").expect("touch");
+        }
+        let cabs = cbs_rotations(&dir, "cab");
+        assert_eq!(cabs.len(), 2);
+        assert!(cabs[0].ends_with("CbsPersist_20261125181620.cab"));
+        assert!(cabs[1].ends_with("CbsPersist_20261124144000.cab"));
+        let logs = cbs_rotations(&dir, "log");
+        assert_eq!(logs.len(), 1);
+        assert!(logs[0].ends_with("CbsPersist_20261126115244.log"));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

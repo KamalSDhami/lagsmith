@@ -15,6 +15,7 @@ fn main() {
         "list_crash_dumps",
         "get_disk_usage",
         "get_store_apps",
+        "get_gpu_preferences",
         "get_history",
         "apply_changes",
         "undo_change",

@@ -1,9 +1,11 @@
 import { Bug, Cpu, MonitorX, TriangleAlert } from "lucide-react";
-import type { AppCrash, Stability } from "../types";
+import type { AppCrash, DumpAnalysis, Stability } from "../types";
 import { useSys } from "../lib/useSystemData";
 import { Page, Empty } from "../components/Page";
 import { Card } from "../components/ui/card";
 import { Badge } from "../components/ui/badge";
+import { Button } from "../components/ui/button";
+import { Progress } from "../components/ui/progress";
 import { Skeleton } from "../components/ui/skeleton";
 import { Show } from "../components/Show";
 import { AntiCheatCard } from "../components/AntiCheatCard";
@@ -104,11 +106,48 @@ function AppCrashRow({ a }: { a: AppCrash }) {
   );
 }
 
+function DumpAnalysisRow({ a }: { a: DumpAnalysis }) {
+  const driversPrefix = a.driversLabel === "cause" ? "Cause" : "Drivers present";
+  return (
+    <li className="px-4 py-2 text-[0.8125rem]">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate font-medium" title={a.file}>
+            {a.file}
+          </span>
+          <span className="shrink-0 text-muted tabular-nums" title={a.bugcheckCode}>
+            {shortCode(a.bugcheckCode)}
+          </span>
+        </div>
+        {a.suspectModule && (
+          <Badge tone="danger" className="h-6 shrink-0 px-2 text-[0.75rem]">
+            {a.suspectModule}
+            {a.suspectFrom ? ` · ${a.suspectFrom}` : ""}
+          </Badge>
+        )}
+      </div>
+      {a.drivers.length > 0 && (
+        <div className="mt-0.5 truncate text-[0.75rem] text-muted">
+          {driversPrefix}: {a.drivers.join(", ")}
+        </div>
+      )}
+      {a.error && (
+        <div role="alert" className="mt-0.5 text-[0.75rem] text-danger">
+          {a.error}
+        </div>
+      )}
+    </li>
+  );
+}
+
 export function CrashPage() {
-  const { data, load } = useSys();
+  const { data, load, admin, startAdminTask } = useSys();
   const st = data.get_stability;
   const s = st.status === "ok" || st.status === "loading" ? st.data : undefined;
   const blue30 = s ? s.days.reduce((n, d) => n + d.blueScreens, 0) : null;
+  const analyzing = admin.running === "analyze-dumps";
+  const dumpRun = admin.results["analyze-dumps"];
+  const dumpError = admin.error?.task === "analyze-dumps" ? admin.error.message : null;
 
   return (
     <Page
@@ -197,32 +236,74 @@ export function CrashPage() {
               }
             </Show>
           </div>
-          <h2 className="border-t border-line px-4 pt-2.5 pb-1 text-[0.9375rem] font-semibold">Crash dumps</h2>
-          <div className="max-h-[6.5rem] overflow-y-auto">
-            <Show load={data.list_crash_dumps} what="crash dumps" onRetry={() => load("list_crash_dumps")}>
-              {(dumps) =>
-                dumps.length === 0 ? (
-                  <Empty>No crash dumps on this PC.</Empty>
-                ) : (
-                  <ul className="divide-y divide-line">
-                    {dumps.map((d) => (
-                      <li key={d.file} className="flex items-center justify-between gap-3 px-4 py-1.5 text-[0.8125rem]">
-                        <span className="truncate" title={d.file}>
-                          {d.file.split("\\").pop()}
-                        </span>
-                        <span className="shrink-0 text-muted">
-                          {formatTime(d.time)} · {formatSize(d.bytes)}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )
-              }
-            </Show>
+          <div className="flex items-center justify-between gap-2 border-t border-line px-4 py-2">
+            <h2 className="text-[0.9375rem] font-semibold">Crash dumps</h2>
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={admin.running !== null}
+              onClick={() => startAdminTask("analyze-dumps")}
+              className="h-7 px-2.5 text-[0.75rem] disabled:opacity-50"
+            >
+              {analyzing ? "Analyzing…" : "Analyze dumps"}
+            </Button>
           </div>
-          <p className="px-4 pt-1 pb-2.5 text-[0.75rem] text-muted">
-            Naming the driver in a dump needs admin rights (coming next build)
-          </p>
+          {analyzing && (
+            <div className="border-t border-line px-4 py-2">
+              <Progress value={(admin.event?.percent ?? 0) / 100} label="Dump analysis progress" />
+              <div className="mt-1 flex items-center justify-between gap-2 text-[0.75rem] text-muted">
+                <span className="truncate">{admin.event?.stage ?? "Starting…"}</span>
+                {admin.event?.percent !== null && admin.event?.percent !== undefined && (
+                  <span className="shrink-0 tabular-nums">{Math.round(admin.event.percent)}%</span>
+                )}
+              </div>
+            </div>
+          )}
+          {!analyzing && dumpError && (
+            <p role="alert" className="border-t border-line bg-danger-soft/60 px-4 py-1.5 text-[0.75rem] text-danger">
+              {dumpError}
+            </p>
+          )}
+          <div className="max-h-[10.5rem] min-h-0 overflow-y-auto border-t border-line">
+            {dumpRun ? (
+              dumpRun.result.dumps.length === 0 ? (
+                dumpRun.result.ok ? (
+                  <Empty>{dumpRun.result.message}</Empty>
+                ) : (
+                  <p role="alert" className="px-4 py-3 text-[0.8125rem] text-danger">
+                    {dumpRun.result.message}
+                  </p>
+                )
+              ) : (
+                <ul className="divide-y divide-line" aria-label="Analyzed crash dumps">
+                  {dumpRun.result.dumps.map((a) => (
+                    <DumpAnalysisRow key={a.file} a={a} />
+                  ))}
+                </ul>
+              )
+            ) : (
+              <Show load={data.list_crash_dumps} what="crash dumps" onRetry={() => load("list_crash_dumps")}>
+                {(dumps) =>
+                  dumps.length === 0 ? (
+                    <Empty>No crash dumps on this PC.</Empty>
+                  ) : (
+                    <ul className="divide-y divide-line">
+                      {dumps.map((d) => (
+                        <li key={d.file} className="flex items-center justify-between gap-3 px-4 py-1.5 text-[0.8125rem]">
+                          <span className="truncate" title={d.file}>
+                            {d.file.split("\\").pop()}
+                          </span>
+                          <span className="shrink-0 text-muted">
+                            {formatTime(d.time)} · {formatSize(d.bytes)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )
+                }
+              </Show>
+            )}
+          </div>
         </Card>
 
         <AntiCheatCard />

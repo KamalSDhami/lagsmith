@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
-import { open, nav } from "./helpers";
+import { open, nav, expectFits } from "./helpers";
 
 const sheet = (page: Page) => page.getByRole("dialog");
 
@@ -167,4 +167,147 @@ test("locked startup rows explain why and have no toggle", async ({ page }) => {
   await expect(page.getByTestId("startup-hklm-vanguard")).toContainText("Lagsmith never changes anti-cheat software");
   await expect(page.getByTestId("startup-hklm-securityhealth").getByRole("switch")).toHaveCount(0);
   await expect(page.getByTestId("startup-hklm-securityhealth")).toContainText("Needs admin (coming soon)");
+});
+
+test("admin: SFC streams progress across navigation, locks other tasks, refreshes lastSfc", async ({ page }) => {
+  await open(page, "", 350);
+  await nav(page, "System Repair");
+  await expect(page.getByRole("region", { name: "Last SFC result" })).toContainText("Repaired");
+
+  await page.getByRole("button", { name: "Run SFC" }).click();
+  const sfcCard = page.getByTestId("admin-card-sfc");
+  await expect(sfcCard.getByRole("progressbar", { name: "Check System Files (SFC) progress" })).toBeVisible();
+  await expect(sfcCard).toContainText("Verification 45% complete", { timeout: 5000 });
+  await expect(page.getByRole("button", { name: "Run DISM" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Create Restore Point" })).toBeDisabled();
+
+  // Single-task lock and progress survive navigating to another page and back.
+  await nav(page, "Crash Detective");
+  await expect(page.getByRole("button", { name: "Analyze dumps" })).toBeDisabled();
+  await nav(page, "System Repair");
+
+  await expect(sfcCard).toContainText("No problems", { timeout: 5000 });
+  await expect(sfcCard).toContainText("Windows Resource Protection did not find any integrity violations.");
+  await expect(page.getByRole("region", { name: "Last SFC result" })).toContainText("No problems");
+  await expect(page.getByRole("button", { name: "Run DISM" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Create Restore Point" })).toBeEnabled();
+  await expectFits(page);
+});
+
+test("admin: DISM succeeds and updates Last results", async ({ page }) => {
+  await open(page);
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Run DISM" }).click();
+
+  const dismCard = page.getByTestId("admin-card-dism-restorehealth");
+  await expect(dismCard).toContainText("Repaired");
+  await expect(dismCard).toContainText("DISM completed the Windows image repair.");
+
+  const lastDism = page.getByRole("region", { name: "Last DISM result" });
+  await expect(lastDism).toContainText("Repaired");
+  await expect(lastDism).toContainText("DISM completed the Windows image repair.");
+  await expect(lastDism).toContainText("Source: this session");
+  await expectFits(page);
+});
+
+test("admin: DISM reports missing source files with alert and exit code", async ({ page }) => {
+  await open(page, "fixture=dismMissing");
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Run DISM" }).click();
+
+  const dismCard = page.getByTestId("admin-card-dism-restorehealth");
+  await expect(dismCard).toContainText("Source missing");
+  await expect(dismCard.getByRole("alert")).toContainText("0x800F081F");
+
+  const lastDism = page.getByRole("region", { name: "Last DISM result" });
+  await expect(lastDism).toContainText("Source missing");
+  await expect(lastDism).toContainText("Exit 0x800F081F");
+  await expectFits(page);
+});
+
+test("admin: Create Restore Point completes", async ({ page }) => {
+  await open(page);
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Create Restore Point" }).click();
+
+  const rpCard = page.getByTestId("admin-card-restore-point");
+  await expect(rpCard).toContainText("Created");
+  await expect(rpCard).toContainText("Created a Windows restore point.");
+  await expectFits(page);
+});
+
+test("admin: failure shows inline alert on Repair card", async ({ page }) => {
+  await open(page, "fail=run_admin_task");
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Run SFC" }).click();
+
+  const alert = page.getByTestId("admin-card-sfc").getByRole("alert");
+  await expect(alert).toContainText("Mock failure: run_admin_task");
+  await expect(page.getByRole("button", { name: "Run SFC" })).toBeEnabled();
+});
+
+test("admin: Analyze dumps streams progress and displays suspect modules", async ({ page }) => {
+  await open(page, "", 250);
+  await nav(page, "Crash Detective");
+  await page.getByRole("button", { name: "Analyze dumps" }).click();
+
+  await expect(page.getByRole("progressbar", { name: "Dump analysis progress" })).toBeVisible();
+  const list = page.getByRole("list", { name: "Analyzed crash dumps" });
+  await expect(list).toBeVisible({ timeout: 5000 });
+  await expect(list).toContainText("112526-10921-01.dmp");
+  await expect(list).toContainText("0xCE");
+  await expect(list).toContainText("vgk.sys · unloaded");
+  await expect(list).toContainText("112426-11078-01.dmp");
+  await expect(list).toContainText("0x50");
+  await expect(list).toContainText("vgk.sys · loaded");
+  await expect(list).toContainText("Cause: vgk.sys");
+  await expectFits(page);
+});
+
+test("admin: Analyze dumps handles empty dump folder", async ({ page }) => {
+  await open(page, "fixture=bugcheck41");
+  await nav(page, "Crash Detective");
+  await page.getByRole("button", { name: "Analyze dumps" }).click();
+  await expect(page.getByText("No crash dumps found in C:\\Windows\\Minidump.")).toBeVisible();
+  await expectFits(page);
+});
+
+test("admin: running protected game refuses admin tasks with alert", async ({ page }) => {
+  await open(page, "fixture=gameRunning");
+  await nav(page, "System Repair");
+  await page.getByRole("button", { name: "Run SFC" }).click();
+
+  const sfcAlert = page.getByTestId("admin-card-sfc").getByRole("alert");
+  await expect(sfcAlert).toContainText("VALORANT is running");
+  await expect(page.getByRole("region", { name: "Last SFC result" })).toContainText("Repaired");
+
+  await nav(page, "Crash Detective");
+  await page.getByRole("button", { name: "Analyze dumps" }).click();
+  await expect(page.getByRole("alert")).toContainText("VALORANT is running");
+});
+
+test("gaming: per-app GPU preference goes through review and undo", async ({ page }) => {
+  await open(page, "fixture=dualgpu");
+  await nav(page, "Gaming Mode");
+  const select = page.getByRole("combobox", { name: "GPU preference for VALORANT" });
+  await expect(select).toHaveValue("power_saving");
+  await select.selectOption("high_performance");
+
+  const d = sheet(page);
+  await expect(d.getByRole("heading", { name: "Review: Set GPU preference for VALORANT" })).toBeVisible();
+  await d.getByRole("button", { name: "Apply changes" }).click();
+  await expect(d.getByTestId("results")).toContainText("High performance");
+  await d.getByRole("button", { name: "Undo" }).click();
+  await expect(d.getByRole("heading", { name: "Changes undone" })).toBeVisible();
+  await d.getByRole("button", { name: "Close" }).click();
+  await expect(select).toHaveValue("power_saving");
+
+  // Add a custom .exe path through the Review sheet.
+  await page.getByRole("textbox", { name: "App .exe path" }).fill("D:\\Games\\Apex\\r5apex.exe");
+  await page.getByRole("button", { name: "Set", exact: true }).click();
+  await expect(d.getByRole("heading", { name: "Review: Set GPU preference for r5apex" })).toBeVisible();
+  await d.getByRole("button", { name: "Apply changes" }).click();
+  await d.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("combobox", { name: "GPU preference for r5apex" })).toHaveValue("high_performance");
+  await expectFits(page);
 });

@@ -1,8 +1,8 @@
-import { Check, Gamepad2, Info, Layers, Power, ShieldCheck, TriangleAlert, Video, type LucideIcon } from "lucide-react";
-import type { ReactNode } from "react";
-import type { ChangeRequest, SystemState } from "../types";
+import { useState, type ReactNode } from "react";
+import { Check, Gamepad2, Info, Layers, Monitor, Power, ShieldCheck, TriangleAlert, Video, type LucideIcon } from "lucide-react";
+import type { ChangeRequest, GpuAppPreference, GpuPref, SystemState } from "../types";
 import { useSys } from "../lib/useSystemData";
-import { Page } from "../components/Page";
+import { Page, Empty } from "../components/Page";
 import { Card } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Badge } from "../components/ui/badge";
@@ -21,6 +21,12 @@ const MODE_LABEL: Record<SystemState["power"]["mode"], string> = {
   balanced: "Balanced",
   best_efficiency: "Best power efficiency",
   unknown: "Unknown",
+};
+
+const GPU_PREF_LABEL: Record<GpuPref, string> = {
+  auto: "Let Windows decide",
+  power_saving: "Power saving",
+  high_performance: "High performance",
 };
 
 const TIPS = [
@@ -75,6 +81,97 @@ function Requirements({ s }: { s: SystemState }) {
         </p>
       )}
     </>
+  );
+}
+
+function GpuPrefCard({
+  onSelect,
+}: {
+  onSelect: (title: string, items: ReviewItem[], changes: ChangeRequest[]) => void;
+}) {
+  const { data, load } = useSys();
+  const [customExe, setCustomExe] = useState("");
+  const [customPref, setCustomPref] = useState<GpuPref>("high_performance");
+
+  const ask = (app: Pick<GpuAppPreference, "name" | "exe">, preference: GpuPref) =>
+    onSelect(
+      `Set GPU preference for ${app.name}`,
+      [{ label: `${app.name}: ${GPU_PREF_LABEL[preference]}`, detail: app.exe }],
+      [{ kind: "gpuPreference", exe: app.exe, preference }],
+    );
+
+  const addCustom = (e: React.FormEvent) => {
+    e.preventDefault();
+    const trimmed = customExe.trim().replace(/^"+|"+$/g, "").trim();
+    if (!trimmed) return;
+    const name = trimmed.split(/[\\/]/).pop()?.replace(/\.exe$/i, "") || trimmed;
+    ask({ name, exe: trimmed }, customPref);
+  };
+
+  return (
+    <Card className="flex min-h-0 flex-1 flex-col" aria-labelledby="gpu-pref-title">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-1.5">
+        <Monitor size={16} strokeWidth={ICON_STROKE} className="text-muted" aria-hidden />
+        <h2 id="gpu-pref-title" className="text-[0.9375rem] font-semibold">
+          Per-app GPU preference
+        </h2>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <Show load={data.get_gpu_preferences} what="graphics preferences" onRetry={() => load("get_gpu_preferences")}>
+          {(apps) =>
+            apps.length === 0 ? (
+              <Empty>No apps listed yet. Add an app .exe below to set its GPU preference.</Empty>
+            ) : (
+              <ul className="divide-y divide-line" aria-label="Per-app GPU preferences">
+                {apps.map((app) => (
+                  <li key={app.exe} className="flex items-center gap-2.5 px-4 py-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-[0.875rem] font-medium">{app.name}</div>
+                      <div className="truncate text-[0.75rem] text-muted" title={app.exe}>
+                        {app.exe}
+                      </div>
+                    </div>
+                    <select
+                      aria-label={`GPU preference for ${app.name}`}
+                      value={app.preference}
+                      onChange={(e) => ask(app, e.currentTarget.value as GpuPref)}
+                      className="h-8 shrink-0 rounded-lg border border-line bg-surface px-2 text-[0.8125rem]"
+                    >
+                      <option value="auto">Let Windows decide</option>
+                      <option value="power_saving">Power saving</option>
+                      <option value="high_performance">High performance</option>
+                    </select>
+                  </li>
+                ))}
+              </ul>
+            )
+          }
+        </Show>
+      </div>
+      <form onSubmit={addCustom} className="flex items-center gap-2 border-t border-line px-4 py-2">
+        <input
+          type="text"
+          value={customExe}
+          onChange={(e) => setCustomExe(e.target.value)}
+          placeholder="C:\Games\Game\game.exe"
+          aria-label="App .exe path"
+          className="h-8 min-w-0 flex-1 rounded-lg border border-line bg-surface px-2.5 text-[0.8125rem] placeholder:text-muted"
+        />
+        <select
+          aria-label="GPU preference for new app"
+          value={customPref}
+          onChange={(e) => setCustomPref(e.currentTarget.value as GpuPref)}
+          className="h-8 rounded-lg border border-line bg-surface px-2 text-[0.8125rem]"
+        >
+          <option value="high_performance">High performance</option>
+          <option value="power_saving">Power saving</option>
+          <option value="auto">Let Windows decide</option>
+        </select>
+        <Button type="submit" size="sm" variant="outline" disabled={!customExe.trim()}>
+          Set
+        </Button>
+      </form>
+    </Card>
   );
 }
 
@@ -179,23 +276,7 @@ export function GamingPage() {
               )}
             </Show>
           </Card>
-          <Card className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
-            <div className="flex items-center gap-2">
-              <Layers size={16} strokeWidth={ICON_STROKE} className="text-muted" aria-hidden />
-              <h2 className="text-[0.9375rem] font-semibold">Hyper-V and WSL</h2>
-            </div>
-            {s ? (
-              <p className="mt-1 text-[0.8125rem] leading-snug text-muted">
-                Hyper-V is {s.hyperVRunning ? "running" : "not running"}
-                {s.wslDistros.length > 0 ? `, and WSL has ${s.wslDistros.join(", ")} installed` : ""}.{" "}
-                {s.hyperVRunning
-                  ? "Virtualization can cost a little game performance. Lagsmith explains it and leaves it as is."
-                  : "Nothing to note."}
-              </p>
-            ) : (
-              <p className="mt-1 text-[0.8125rem] text-muted">{sy.status === "error" ? "Couldn't read Hyper-V state" : "Reading…"}</p>
-            )}
-          </Card>
+          <GpuPrefCard onSelect={send} />
         </div>
 
         <div className="flex min-h-0 flex-col gap-3">
@@ -226,7 +307,7 @@ export function GamingPage() {
               ))}
             </ul>
           </Card>
-          <Card className={cn("min-h-0 flex-1 overflow-y-auto px-4 py-3")}>
+          <Card className={cn("shrink-0 px-4 py-3")}>
             <div className="flex items-center gap-2">
               {sec.status === "ok" && sec.data.memoryIntegrity ? (
                 <Info size={16} strokeWidth={ICON_STROKE} className="text-info" aria-hidden />
@@ -242,6 +323,23 @@ export function GamingPage() {
               It can cost some performance in games, but it blocks malicious drivers and some anti-cheats rely on it. Lagsmith
               explains it and never changes it. You can review it in Windows Security, Device security, Core isolation.
             </p>
+          </Card>
+          <Card className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Layers size={16} strokeWidth={ICON_STROKE} className="text-muted" aria-hidden />
+              <h2 className="text-[0.9375rem] font-semibold">Hyper-V and WSL</h2>
+            </div>
+            {s ? (
+              <p className="mt-1 text-[0.8125rem] leading-snug text-muted">
+                Hyper-V is {s.hyperVRunning ? "running" : "not running"}
+                {s.wslDistros.length > 0 ? `, and WSL has ${s.wslDistros.join(", ")} installed` : ""}.{" "}
+                {s.hyperVRunning
+                  ? "Virtualization can cost a little game performance. Lagsmith explains it and leaves it as is."
+                  : "Nothing to note."}
+              </p>
+            ) : (
+              <p className="mt-1 text-[0.8125rem] text-muted">{sy.status === "error" ? "Couldn't read Hyper-V state" : "Reading…"}</p>
+            )}
           </Card>
         </div>
       </div>

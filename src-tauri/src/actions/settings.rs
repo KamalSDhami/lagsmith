@@ -2,8 +2,11 @@
 //! Callers validate first; these only write HKCU values and the power overlay.
 
 use crate::model::StartupApp;
+use crate::scan::gpuprefs::{GPU_PREFS_KEY, is_anticheat_binary, is_exe_path, parse_gpu_pref, set_gpu_pref_token};
 use crate::scan::startup::{HKCU_FOLDER, HKCU_RUN};
+use crate::scan::storage::long_path;
 use std::borrow::Cow;
+use std::path::Path;
 use windows::Win32::System::SystemInformation::GetSystemTimeAsFileTime;
 use windows::core::GUID;
 use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE, RegType};
@@ -117,6 +120,77 @@ pub(crate) fn set_overlay(g: GUID) -> Result<(), String> {
     }
 }
 
+// ---------- Per-app GPU preference (HKCU\Software\Microsoft\DirectX\UserGpuPreferences)
+
+pub(crate) fn validate_gpu_exe(exe: &str) -> Result<String, String> {
+    let trimmed = exe.trim().trim_matches('"').trim().replace('/', "\\");
+    if trimmed.is_empty()
+        || trimmed.len() > 512
+        || trimmed.chars().any(|c| c.is_control() || c == ';' || c == '=')
+        || !is_exe_path(&trimmed)
+        || trimmed.contains("..")
+    {
+        return Err("Enter a full path to a .exe file".into());
+    }
+    let resolved = if Path::new(&trimmed).exists() {
+        long_path(Path::new(&trimmed)).to_string_lossy().into_owned()
+    } else {
+        trimmed.clone()
+    };
+    if is_anticheat_binary(&trimmed) || is_anticheat_binary(&resolved) {
+        return Err("Lagsmith never changes anti-cheat files".into());
+    }
+    Ok(trimmed)
+}
+
+pub(crate) fn read_gpu_pref_raw(exe: &str) -> Result<Option<String>, String> {
+    match RegKey::predef(HKEY_CURRENT_USER).open_subkey_with_flags(GPU_PREFS_KEY, KEY_READ) {
+        Ok(k) => match k.get_value::<String, _>(exe) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(e) => Err(format!("Couldn't read graphics preference: {e}")),
+        },
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("Couldn't read graphics preference: {e}")),
+    }
+}
+
+pub(crate) fn write_gpu_pref_raw(exe: &str, value: Option<&str>) -> Result<(), String> {
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    match value {
+        Some(v) => {
+            let (k, _) = hkcu.create_subkey_with_flags(GPU_PREFS_KEY, KEY_READ | KEY_WRITE).map_err(|e| format!("Couldn't open graphics settings: {e}"))?;
+            k.set_value(exe, &v).map_err(|e| format!("Couldn't set graphics preference: {e}"))
+        }
+        None => match hkcu.open_subkey_with_flags(GPU_PREFS_KEY, KEY_READ | KEY_WRITE) {
+            Ok(k) => match k.delete_value(exe) {
+                Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(format!("Couldn't reset graphics preference: {e}")),
+                _ => Ok(()),
+            },
+            Err(_) => Ok(()),
+        },
+    }
+}
+
+pub(crate) enum GpuPrefApply {
+    Applied { exe: String, previous: Option<String> },
+    Skipped,
+}
+
+pub(crate) fn apply_gpu_pref(exe: &str, preference: &str) -> Result<GpuPrefApply, String> {
+    let exe = validate_gpu_exe(exe)?;
+    let previous = read_gpu_pref_raw(&exe)?;
+    if previous.is_none() && !Path::new(&exe).is_file() {
+        return Err("That .exe file wasn't found on disk".into());
+    }
+    let next = set_gpu_pref_token(previous.as_deref(), preference).ok_or_else(|| "Unknown GPU preference".to_string())?;
+    if parse_gpu_pref(previous.as_deref().unwrap_or("")) == preference {
+        return Ok(GpuPrefApply::Skipped);
+    }
+    write_gpu_pref_raw(&exe, Some(&next))?;
+    Ok(GpuPrefApply::Applied { exe, previous })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -134,5 +208,13 @@ mod tests {
             assert_eq!(crate::scan::system::overlay_mode(&g), m);
         }
         assert!(mode_guid("ultimate").is_none());
+    }
+
+    #[test]
+    fn gpu_exe_validation() {
+        assert_eq!(validate_gpu_exe(r#" "C:\Games\game.exe" "#).as_deref(), Ok(r"C:\Games\game.exe"));
+        for bad in ["", "game.exe", r"C:\Games\..\evil.exe", r"C:\Games\a;b.exe", r"C:\Games\note.txt", r"C:\Program Files\Riot Vanguard\vgc.exe"] {
+            assert!(validate_gpu_exe(bad).is_err(), "{bad}");
+        }
     }
 }

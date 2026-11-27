@@ -87,6 +87,7 @@ export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p:
     security: value(data.get_security),
     system: value(data.get_system),
     anticheat: value(data.get_anticheat),
+    gpuPreferences: value(data.get_gpu_preferences),
   });
 
   return (
