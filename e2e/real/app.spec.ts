@@ -71,6 +71,8 @@ test("A13 A19 A20: Gaming shows Secure Boot, TPM 2.0, Game Mode and anti-cheat s
   await expect(tpmRow.first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Secure Boot/).first()).toBeVisible();
   await expect(page.getByText(/Game Mode/).first()).toBeVisible();
+  // Memory Integrity, Hyper-V and WSL live in a closed disclosure (explained, never changed).
+  await page.getByText("What Lagsmith explains but never changes").click();
   await expect(page.getByText(/Memory Integrity/).first()).toBeVisible();
 });
 
