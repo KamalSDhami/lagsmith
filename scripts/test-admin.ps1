@@ -6,6 +6,8 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+# powershell -File passes "a,b" as one string; split it into separate task ids.
+$Tasks = @($Tasks | ForEach-Object { $_ -split "," } | ForEach-Object { $_.Trim() } | Where-Object { $_ })
 $env:Path = "$env:USERPROFILE\.cargo\bin;$env:Path"
 $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS = "--remote-debugging-port=9222"
 Set-Location (Split-Path $PSScriptRoot -Parent)
