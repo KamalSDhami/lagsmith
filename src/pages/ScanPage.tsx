@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Check, CircleCheck, CircleX, LoaderCircle, Play } from "lucide-react";
+import { ArrowRight, Check, CircleCheck, CircleX, LoaderCircle, Play } from "lucide-react";
 import { SCAN_STEPS, useSys, value, type ScanCmdState } from "../lib/useSystemData";
 import { Page } from "../components/Page";
 import { Card } from "../components/ui/card";
@@ -42,7 +42,7 @@ function Ring({ pct }: { pct: number }) {
   );
 }
 
-export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p: PageId) => void }) {
+export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p: PageId, focus?: string) => void }) {
   const { scan, cancelScan, data } = useSys();
   const [now, setNow] = useState(() => Date.now());
   const running = !!scan && !scan.finishedAt && !scan.cancelled;
@@ -53,26 +53,14 @@ export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p:
     return () => clearInterval(t);
   }, [running]);
 
-  if (!scan || scan.cancelled) {
-    return (
-      <Page title="Scan PC" subtitle="Read crash history, hardware, storage, memory and startup in one pass.">
-        <Card className="flex flex-col items-center gap-3 p-10 text-center">
-          {scan?.cancelled && <p className="text-[0.875rem] text-muted">Scan cancelled. Results that already arrived are kept.</p>}
-          <p className="text-[0.9375rem] text-muted">Lagsmith only reads. Nothing on your PC changes during a scan.</p>
-          <Button size="lg" onClick={onStart}>
-            <Play size={18} strokeWidth={ICON_STROKE} aria-hidden />
-            Start scan
-          </Button>
-        </Card>
-      </Page>
-    );
-  }
-
-  const steps = SCAN_STEPS.map((s) => ({ ...s, state: stepState(s.cmds.map((c) => scan.cmds[c] ?? "pending")) }));
-  const doneCmds = Object.values(scan.cmds).filter((s) => s !== "pending").length;
-  const total = Object.keys(scan.cmds).length;
-  const pct = Math.round((doneCmds / total) * 100);
-  const elapsed = (scan.finishedAt ?? now) - scan.startedAt;
+  const live = scan && !scan.cancelled ? scan : null;
+  const idle = !live;
+  const cmds = live?.cmds ?? {};
+  const steps = SCAN_STEPS.map((s) => ({ ...s, state: stepState(s.cmds.map((c) => cmds[c] ?? "pending")) }));
+  const doneCmds = Object.values(cmds).filter((s) => s !== "pending").length;
+  const total = SCAN_STEPS.reduce((n, s) => n + s.cmds.length, 0);
+  const pct = idle ? 0 : Math.round((doneCmds / total) * 100);
+  const elapsed = live ? (live.finishedAt ?? now) - live.startedAt : 0;
   const stepsDone = steps.filter((s) => s.state === "done" || s.state === "error").length;
   const failed = steps.filter((s) => s.state === "error").length;
 
@@ -90,10 +78,13 @@ export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p:
     gpuPreferences: value(data.get_gpu_preferences),
   });
 
+  const top = findings[0];
+
   return (
     <Page
-      title={running ? "Scanning your PC…" : "Scan complete"}
-      subtitle="Reading crash history, hardware, storage, memory and startup data."
+      title={idle ? "Scan PC" : running ? "Scanning your PC…" : "Scan complete"}
+      subtitle={idle ? "Read crash history, hardware, storage, memory and startup in one pass." : "Reading crash history, hardware, storage, memory and startup data."}
+      className="justify-center"
     >
       <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-10 px-6">
         <Ring pct={pct} />
@@ -115,7 +106,7 @@ export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p:
                   )}
                 >
                   {s.state === "done" && <Check size={15} strokeWidth={ICON_STROKE} aria-hidden />}
-                  {{ done: "Done", error: "Couldn't read", running: "Reading…", pending: "Pending" }[s.state]}
+                  {{ done: "Done", error: "Couldn't read", running: "Reading…", pending: idle ? "Not run" : "Pending" }[s.state]}
                 </span>
               </li>
             ))}
@@ -123,7 +114,7 @@ export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p:
         </Card>
       </div>
 
-      <div className="mx-auto mt-6 grid w-full max-w-[40rem] grid-cols-2 divide-x divide-line text-center">
+      <div className="mx-auto grid w-full max-w-[40rem] grid-cols-2 divide-x divide-line text-center">
         <div>
           <div className="text-[1.375rem] font-semibold tabular-nums">
             {stepsDone} of {steps.length}
@@ -138,22 +129,41 @@ export function ScanPage({ onStart, onOpen }: { onStart: () => void; onOpen: (p:
         </div>
       </div>
 
-      <div className="mt-6 flex justify-center">
-        {running ? (
+      <div className="flex flex-col items-center gap-2">
+        {scan?.cancelled && <p className="text-[0.875rem] text-muted">Scan cancelled. Results that already arrived are kept.</p>}
+        {idle ? (
+          <>
+            <Button size="lg" onClick={onStart}>
+              <Play size={18} strokeWidth={ICON_STROKE} aria-hidden />
+              Start scan
+            </Button>
+            <p className="text-[0.875rem] text-muted">Lagsmith only reads. Nothing on your PC changes during a scan.</p>
+          </>
+        ) : running ? (
           <Button variant="outline" onClick={cancelScan}>
             Cancel scan
           </Button>
         ) : (
           <Card className="flex w-full max-w-[40rem] items-center justify-between gap-6 px-5 py-4" data-testid="scan-summary">
             <div className="text-[0.875rem]">
-              <div className="font-semibold">{findings.length === 1 ? "1 finding" : `${findings.length} findings`}</div>
+              <div className="font-semibold">{findings.length === 1 ? "1 finding" : `${findings.length} findings`}{top ? `. Top: ${top.title}` : ""}</div>
               <div className="text-muted">
                 {stab ? plural(blueScreensLast7Days(stab), "blue screen", "blue screens") + " in 7 days" : "Crash history unavailable"}
                 {drive ? ` · ${formatGB(drive.freeBytes)} free on ${drive.letter}` : ""}
                 {failed > 0 ? ` · ${plural(failed, "step", "steps")} couldn't read` : ""}
               </div>
             </div>
-            <Button onClick={() => onOpen("dashboard")}>View results</Button>
+            <div className="flex shrink-0 items-center gap-2">
+              {top?.action && (
+                <Button onClick={() => onOpen(top.action!.page, top.action!.focus)}>
+                  {top.action.label}
+                  <ArrowRight size={16} strokeWidth={ICON_STROKE} aria-hidden />
+                </Button>
+              )}
+              <Button variant={top?.action ? "outline" : "primary"} onClick={() => onOpen("dashboard")}>
+                {findings.length > 1 ? `View all ${findings.length} findings` : "View results"}
+              </Button>
+            </div>
           </Card>
         )}
       </div>

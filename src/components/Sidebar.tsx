@@ -1,12 +1,28 @@
-import { Monitor } from "lucide-react";
+import { useEffect, useState } from "react";
+import { LoaderCircle, RefreshCw } from "lucide-react";
 import { NAV, ICON_STROKE, type Page } from "../pages/nav";
 import { cn } from "../lib/cn";
 import { LogoMark } from "./Logo";
+import { formatAgo } from "../lib/format";
 
-export function Sidebar({ page, onNavigate, osName }: { page: Page; onNavigate: (p: Page) => void; osName: string | null }) {
+interface Props {
+  page: Page;
+  onNavigate: (p: Page) => void;
+  osName: string | null;
+  scanning: boolean;
+  finishedAt: number | null;
+  onScan: () => void;
+}
+
+export function Sidebar({ page, onNavigate, osName, scanning, finishedAt, onScan }: Props) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(t);
+  }, []);
   return (
-    <aside className="flex h-full w-[260px] shrink-0 flex-col border-r border-line bg-sidebar">
-      <div className="flex items-center gap-3 px-7 pt-6 pb-5">
+    <aside className="flex h-full w-[220px] shrink-0 min-[1200px]:w-[260px] flex-col border-r border-line bg-sidebar">
+      <div className="flex items-center gap-3 px-5 pt-6 pb-5 min-[1200px]:px-7">
         <LogoMark className="size-9" />
         <div className="leading-tight">
           <div className="text-[1.0625rem] font-semibold tracking-tight">Lagsmith</div>
@@ -43,10 +59,23 @@ export function Sidebar({ page, onNavigate, osName }: { page: Page; onNavigate: 
       </nav>
 
       <div className="px-4 pb-5">
-        <div className="flex h-11 items-center gap-2.5 rounded-xl bg-[#e9e9ee] px-4 text-[0.875rem] font-medium">
-          <Monitor size={17} strokeWidth={ICON_STROKE} aria-hidden className="text-[#3a3a40]" />
-          {osName ?? "Windows"}
-        </div>
+        {/* Scan state is from this session only; there is no stored scan history. */}
+        <button
+          onClick={onScan}
+          disabled={scanning}
+          className="flex h-11 w-full items-center gap-2.5 rounded-xl border border-line bg-surface px-4 text-left text-[0.875rem] font-medium hover:bg-subtle disabled:opacity-60"
+        >
+          {scanning ? (
+            <LoaderCircle size={16} strokeWidth={ICON_STROKE} aria-hidden className="motion-safe:animate-spin" />
+          ) : (
+            <RefreshCw size={16} strokeWidth={ICON_STROKE} aria-hidden />
+          )}
+          {scanning ? "Scanning…" : "Scan again"}
+        </button>
+        <p className="mt-2 px-1 text-[0.8125rem] text-muted">
+          {finishedAt ? `Last scan ${formatAgo(finishedAt, now)}` : "Not scanned this session"}
+        </p>
+        <p className="px-1 text-[0.8125rem] text-muted">{osName ?? "Windows"}</p>
       </div>
     </aside>
   );

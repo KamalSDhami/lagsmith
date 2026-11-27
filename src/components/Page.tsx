@@ -1,5 +1,8 @@
 import type { ReactNode } from "react";
+import { ArrowLeft } from "lucide-react";
 import { cn } from "../lib/cn";
+import { useNav } from "../lib/navContext";
+import { pageLabel, ICON_STROKE } from "../pages/nav";
 
 /** Page frame: a header, then a body that fills the remaining height so long lists scroll inside their cards. */
 export function Page({
@@ -15,16 +18,28 @@ export function Page({
   children: ReactNode;
   className?: string;
 }) {
+  const { from, go } = useNav();
   return (
     <div className="flex h-full min-h-0 flex-col">
       <header className="flex shrink-0 items-start justify-between gap-6">
         <div className="min-w-0">
-          <h1 className="text-[1.625rem] leading-tight font-semibold tracking-tight">{title}</h1>
+          <h1 tabIndex={-1} className="text-[1.625rem] leading-tight font-semibold tracking-tight">{title}</h1>
           {subtitle && <p className="mt-0.5 text-[0.9375rem] text-muted">{subtitle}</p>}
         </div>
-        {aside && <div className="shrink-0">{aside}</div>}
+        <div className="flex shrink-0 items-start gap-4">
+          {from && (
+            <button
+              onClick={() => go(from)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg px-2.5 text-[0.875rem] font-medium text-accent hover:bg-subtle"
+            >
+              <ArrowLeft size={16} strokeWidth={ICON_STROKE} aria-hidden />
+              Back to {pageLabel(from)}
+            </button>
+          )}
+          {aside}
+        </div>
       </header>
-      <div className={cn("mt-4 flex min-h-0 flex-1 flex-col", className)}>{children}</div>
+      <div className={cn("mt-4 flex min-h-0 flex-1 flex-col gap-4", className)}>{children}</div>
     </div>
   );
 }

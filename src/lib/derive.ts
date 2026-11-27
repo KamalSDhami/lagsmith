@@ -3,16 +3,23 @@ import { hasRiotGame, valorantRequirements, VALORANT_NOTE } from "./requirements
 import type { Page } from "../pages/nav";
 import { formatGB, formatRam, isoDay, plural } from "./format";
 
-export function blueScreensLast7Days(s: Stability, now = new Date()): number {
+/** First local day (YYYY-MM-DD) of a window that ends today and spans `n` days. */
+export function sinceDay(n: number, now = new Date()): string {
   const start = new Date(now);
-  start.setDate(now.getDate() - 6);
-  const from = isoDay(start);
+  start.setDate(now.getDate() - (n - 1));
+  return isoDay(start);
+}
+
+/** Blue screens in the last `n` days. Compares YYYY-MM-DD strings so no timezone conversion can shift a day. */
+export function blueScreensInDays(s: Stability, n: number, now = new Date()): number {
+  const from = sinceDay(n, now);
   const to = isoDay(now);
-  // Compare YYYY-MM-DD strings so no timezone conversion can shift a day.
   return s.days
     .filter((d) => d.date.slice(0, 10) >= from && d.date.slice(0, 10) <= to)
-    .reduce((n, d) => n + d.blueScreens, 0);
+    .reduce((c, d) => c + d.blueScreens, 0);
 }
+
+export const blueScreensLast7Days = (s: Stability, now = new Date()) => blueScreensInDays(s, 7, now);
 
 /** Rust returns crashes newest first. */
 export function latestCrash(s: Stability) {
@@ -78,7 +85,7 @@ export interface Finding {
   evidence: string;
   source: string;
   /** Button label and destination; omitted when there is nothing more to show. */
-  action?: { label: string; page: Page };
+  action?: { label: string; page: Page; focus?: string };
 }
 
 type Partial8 = {
@@ -108,7 +115,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
         body: latest?.meaning ? `${body} Latest: ${latest.meaning}` : body,
         evidence: plural(n, "blue screen", "blue screens"),
         source: "Windows Event Log",
-        action: { label: "View crashes", page: "crash" },
+        action: { label: "Find the cause", page: "crash", focus: "crash-latest" },
       });
     }
   }
@@ -123,7 +130,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
         body: VALORANT_NOTE,
         evidence: `Secure Boot ${r.secureBoot.label} · TPM ${r.tpm.label}`,
         source: "System check",
-        action: { label: "View gaming", page: "gaming" },
+        action: { label: "Check requirements", page: "gaming", focus: "valorant" },
       });
     }
   }
@@ -138,7 +145,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
         body: "Your system drive is almost full, which can cause slowdowns and crashes.",
         evidence: `${formatGB(c.freeBytes)} free of ${formatGB(c.totalBytes)}`,
         source: "Disk scan",
-        action: { label: "View storage", page: "storage" },
+        action: { label: "Free up space", page: "storage", focus: "c-drive" },
       });
     }
   }
@@ -151,7 +158,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
       body: "Windows is limiting performance even though you're plugged in. Switch to Best performance before gaming.",
       evidence: "",
       source: "Windows power settings",
-      action: { label: "Fix in Gaming Mode", page: "gaming" },
+      action: { label: "Fix in Gaming Mode", page: "gaming", focus: "power-mode" },
     });
   }
 
@@ -165,7 +172,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
         body: `${wrong[0].name} is pinned to integrated graphics on a dual-GPU PC. Switch it to High performance.`,
         evidence: plural(wrong.length, "app", "apps"),
         source: "Windows graphics settings",
-        action: { label: "Fix in Gaming Mode", page: "gaming" },
+        action: { label: "Fix in Gaming Mode", page: "gaming", focus: "gpu-pref" },
       });
     }
   }
@@ -179,7 +186,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
       body: `Your ${ram} RAM is running in single channel, which reduces memory bandwidth for your graphics.`,
       evidence: `${ram} · ${plural(d.hardware.ramSticks, "stick", "sticks")}`,
       source: "Hardware check",
-      action: { label: "View hardware", page: "hardware" },
+      action: { label: "See upgrade tip", page: "hardware", focus: "ram-tip" },
     });
   }
 
@@ -193,7 +200,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
         body: "Each one adds to boot time and keeps running in the background while you play.",
         evidence: plural(n, "app", "apps"),
         source: "Startup entries",
-        action: { label: "View startup apps", page: "startup" },
+        action: { label: "Review startup apps", page: "startup", focus: "startup-list" },
       });
     }
   }
@@ -208,7 +215,7 @@ export function deriveFindings(d: Partial8, now = new Date()): Finding[] {
       body: "A worn battery can make Windows lower performance and shorten unplugged play. Consider replacing it.",
       evidence: `${p.batteryFullWh} Wh of ${p.batteryDesignWh} Wh design`,
       source: "Battery report",
-      action: { label: "View hardware", page: "hardware" },
+      action: { label: "See battery", page: "hardware", focus: "battery" },
     });
   }
 

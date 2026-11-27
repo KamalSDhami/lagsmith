@@ -18,7 +18,7 @@ const SOURCES: Cmd[] = [
   "get_anticheat",
   "get_gpu_preferences",
 ];
-const COLLAPSED = 3;
+const COLLAPSED = 5;
 
 const tile: Record<Severity, string> = {
   critical: "bg-danger-soft text-danger",
@@ -28,26 +28,28 @@ const tile: Record<Severity, string> = {
 
 const severityLabel: Record<Severity, string> = { critical: "Critical", warning: "Warning", info: "Info" };
 
-function Row({ f, onOpen }: { f: Finding; onOpen: (p: Page) => void }) {
+function Row({ f, onOpen }: { f: Finding; onOpen: (p: Page, focus?: string) => void }) {
   const Icon = f.severity === "info" ? Info : TriangleAlert;
   return (
-    <li className="grid grid-cols-[2.25rem_minmax(0,1fr)_minmax(9rem,13rem)_9.5rem] items-center gap-x-4 px-4 py-2">
+    <li className="grid grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-x-4 px-4 py-2">
       <span className={cn("grid size-9 place-items-center rounded-lg", tile[f.severity])}>
         <Icon size={18} strokeWidth={ICON_STROKE} aria-label={severityLabel[f.severity]} />
       </span>
       <div className="min-w-0">
-        <h3 className="truncate text-[0.9375rem] font-medium">{f.title}</h3>
-        <p title={f.body} className="truncate text-[0.8438rem] text-muted">
+        <h3 className="flex min-w-0 items-baseline gap-2 text-[0.9375rem] font-medium">
+          <span className="shrink-0">{f.title}</span>
+          <span className="truncate text-[0.8125rem] font-normal text-muted">
+            {f.evidence ? `${f.evidence} · ` : ""}
+            {f.source}
+          </span>
+        </h3>
+        <p title={f.body} className="line-clamp-2 text-[0.8438rem] text-muted">
           {f.body}
         </p>
       </div>
-      <div className="min-w-0 text-[0.8438rem] leading-snug">
-        {f.evidence && <div className="truncate font-medium">{f.evidence}</div>}
-        <div className="truncate text-muted">({f.source})</div>
-      </div>
       <div className="flex justify-end">
         {f.action && (
-          <Button variant="outline" size="sm" onClick={() => onOpen(f.action!.page)}>
+          <Button variant="outline" size="sm" onClick={() => onOpen(f.action!.page, f.action!.focus)}>
             {f.action.label}
             <ArrowRight size={15} strokeWidth={ICON_STROKE} aria-hidden />
           </Button>
@@ -59,7 +61,7 @@ function Row({ f, onOpen }: { f: Finding; onOpen: (p: Page) => void }) {
 
 function SkeletonRow() {
   return (
-    <li aria-hidden className="grid grid-cols-[2.25rem_1fr_9.5rem] items-center gap-x-4 px-4 py-2.5">
+    <li aria-hidden className="grid grid-cols-[2.25rem_1fr_9.5rem] items-center gap-x-4 px-4 py-2">
       <Skeleton className="size-9 rounded-lg" />
       <div>
         <Skeleton className="h-4 w-1/3" />
@@ -70,7 +72,7 @@ function SkeletonRow() {
   );
 }
 
-export function TopFindings({ data, retry, onOpen }: { data: SystemData; retry: (c: Cmd) => void; onOpen: (p: Page) => void }) {
+export function TopFindings({ data, retry, onOpen }: { data: SystemData; retry: (c: Cmd) => void; onOpen: (p: Page, focus?: string) => void }) {
   const [expanded, setExpanded] = useState(false);
   const loading = SOURCES.some((c) => data[c].status === "loading");
   const failed = SOURCES.filter((c) => data[c].status === "error");
@@ -94,7 +96,7 @@ export function TopFindings({ data, retry, onOpen }: { data: SystemData; retry: 
   const hidden = findings.length > COLLAPSED;
 
   return (
-    <section aria-labelledby="findings-title" className="mt-4">
+    <section aria-labelledby="findings-title">
       <div className="mb-2 flex items-baseline justify-between">
         <h2 id="findings-title" className="text-[1.125rem] font-semibold tracking-tight">
           Top findings
@@ -104,7 +106,7 @@ export function TopFindings({ data, retry, onOpen }: { data: SystemData; retry: 
             onClick={() => setExpanded((e) => !e)}
             aria-expanded={expanded}
             aria-controls="findings-list"
-            className="text-[0.875rem] font-medium text-accent underline-offset-2 hover:underline"
+            className="inline-flex h-8 items-center text-[0.875rem] font-medium text-accent underline-offset-2 hover:underline"
           >
             {expanded ? "Show fewer" : `View all ${findings.length}`}
           </button>

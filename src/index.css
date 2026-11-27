@@ -72,3 +72,13 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+h1:focus {
+  outline: none;
+}
+
+/* Cross-link target: set for 1.5 s by App when a finding opens a page at one item. */
+[data-flash] {
+  background-color: var(--color-accent-soft) !important;
+  transition: background-color 0.3s;
+}

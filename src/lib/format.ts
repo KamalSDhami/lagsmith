@@ -68,3 +68,12 @@ export function formatElapsed(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
   return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 }
+
+/** "just now", "5 min ago", "2 h ago" for a past timestamp in ms. */
+export function formatAgo(ms: number, now = Date.now()): string {
+  const m = Math.floor(Math.max(0, now - ms) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  return h < 24 ? `${h} h ago` : `${Math.floor(h / 24)} d ago`;
+}

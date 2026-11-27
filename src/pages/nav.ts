@@ -8,7 +8,6 @@ import {
   Cpu,
   Power,
   Search,
-  Settings,
   TriangleAlert,
   Wrench,
   type LucideIcon,
@@ -25,8 +24,7 @@ export type Page =
   | "gaming"
   | "debloat"
   | "repair"
-  | "history"
-  | "settings";
+  | "history";
 
 export interface NavItem {
   id: Page;
@@ -60,15 +58,14 @@ export const NAV: NavGroup[] = [
       { id: "storage", label: "Storage Cleaner", icon: Layers },
       { id: "startup", label: "Startup Manager", icon: Power },
       { id: "gaming", label: "Gaming Mode", icon: Gamepad2 },
-      { id: "debloat", label: "Debloat", icon: LayoutGrid },
     ],
   },
   {
     label: "System",
     items: [
       { id: "repair", label: "System Repair", icon: Wrench },
+      { id: "debloat", label: "Debloat", icon: LayoutGrid },
       { id: "history", label: "History & Undo", icon: History },
-      { id: "settings", label: "Settings", icon: Settings },
     ],
   },
 ];
