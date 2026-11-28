@@ -1,1 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><path d="M11 6h6L9 26H3z" fill="#7B79E8"/><path d="M22 6h7l-9 20h-7z" fill="#4B48C9"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="420 150 700 700" role="img" aria-label="Lagsmith">
+  <!-- Traced from the owner's logo (28 Nov 2026). Round joins reproduce the soft corners. -->
+  <path d="M485 238 L614 418 L604 604 L626 628 L828 628 L984 778 L586 778 L456 640 Z"
+        fill="#F5F4F2" stroke="#5F5F5F" stroke-width="14" stroke-linejoin="round"/>
+  <path d="M1082 222 L1052 492 L968 586 L746 590 Z"
+        fill="#FF3B3F" stroke="#5F5F5F" stroke-width="14" stroke-linejoin="round"/>
+</svg>

@@ -138,7 +138,7 @@ export function Sidebar({ page, onNavigate, scanning, finishedAt, onScan, collap
     >
       <div className={cn("flex shrink-0 pt-4 pb-3 [@media(max-height:740px)]:pt-3 [@media(max-height:740px)]:pb-2", rail ? "flex-col items-center gap-2 px-3 [@media(max-height:740px)]:gap-1" : "items-center justify-between gap-2 pr-3 pl-4")}>
         <div className="flex min-w-0 items-center gap-3">
-          <LogoMark className="size-8 shrink-0" />
+          <LogoMark className="size-9 shrink-0" />
           {!rail && (
             <div className="min-w-0 leading-tight whitespace-nowrap">
               <div className="text-card font-semibold tracking-tight">Lagsmith</div>

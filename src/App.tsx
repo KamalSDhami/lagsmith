@@ -111,7 +111,7 @@ export default function App() {
             dots={dots}
           />
           <main ref={main} id="main" className="min-w-0 flex-1 overflow-y-auto">
-            <div className={`mx-auto flex max-w-[1200px] flex-col px-6 pt-5 ${layout === "fit" ? "h-full pb-4" : "min-h-full pb-5"}`}>
+            <div className={`mx-auto flex max-w-[1200px] flex-col px-6 ${layout === "fit" ? "h-full pt-4 pb-3" : "min-h-full pt-5 pb-5"}`}>
               {page === "dashboard" && (
                 <div className="flex flex-col gap-4">
                   <TopBar

@@ -259,3 +259,8 @@ h1:focus {
 .animate-rise {
   animation: rise 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }
+
+/* Logo outline is #5F5F5F, too faint on near-black surfaces: add a thin light edge in dark mode only. */
+[data-theme="dark"] .brand-logo {
+  filter: drop-shadow(0 0 0.6px rgb(255 255 255 / 0.55));
+}
