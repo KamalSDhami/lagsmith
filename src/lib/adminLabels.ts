@@ -6,6 +6,7 @@ const NAME: Record<AdminTask, string> = {
   "dism-restorehealth": "DISM",
   "restore-point": "restore point",
   "analyze-dumps": "dump analysis",
+  "purge-standby": "standby list clean",
 };
 
 /** What a disabled admin button says while something else runs: what it is and how far along. */

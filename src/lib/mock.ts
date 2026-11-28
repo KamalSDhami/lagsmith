@@ -1,4 +1,7 @@
-import type { ActionCommands, AdminEvent, AdminResult, AdminTask, ChangeItem, ChangeRequest, ChangeSet, Commands, DayEvents, DumpAnalysis } from "../types";
+import type {
+  ActionCommands, AdminEvent, AdminResult, AdminTask, ChangeItem, ChangeRequest, ChangeSet, Commands, DayEvents, DumpAnalysis,
+  ExtraCommands, FindingRecord, MemoryClean, ScanReport, Settings,
+} from "../types";
 
 // Sample data for `npm run dev` and the Playwright mock tests. Development only: api.ts imports
 // this lazily behind import.meta.env.DEV, so it is not part of the release bundle.
@@ -7,7 +10,7 @@ import type { ActionCommands, AdminEvent, AdminResult, AdminTask, ChangeItem, Ch
 // the contract requires but we never measured are marked "invented" below.
 //
 // URL switches (all composable):
-//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing|oldwsl|oldcrash (repeatable)
+//   ?fixture=dualgpu|noram|bugcheck41|allfail|empty|tpmfail|novanguard|battery|gameRunning|dismMissing|oldwsl|oldcrash|resolved|savedDumps (repeatable)
 //   ?fail=<command>   make one command fail (repeatable)
 //   ?delay=<ms>       fixed delay for every command (default 300; driver check 1500, disk usage 2000)
 
@@ -350,9 +353,89 @@ function later<T>(cmd: string, work: () => T): Promise<T> {
 
 let bgLooks = 0;
 
-export function mockCall<K extends keyof Commands>(cmd: K): Promise<Commands[K]> {
+// ---- App data: settings, findings (Resolved markers), saved dump analysis. In memory only. ----
+
+const DEFAULT_SETTINGS: Settings = { theme: "system", sidebarCollapsed: false, startWithWindows: false, autoClean: { enabled: false, thresholdPercent: 85 } };
+let extraState: ExtraCommands | null = null;
+const opened: string[] = [];
+if (typeof window !== "undefined") (window as unknown as { __lagsmithOpened?: string[] }).__lagsmithOpened = opened; // tests read the links "opened"
+
+function extra(): ExtraCommands {
+  if (extraState) return extraState;
+  const fixtures = params().getAll("fixture");
+  extraState = {
+    get_settings: structuredClone(DEFAULT_SETTINGS),
+    // "resolved": a blue-screen finding that a later scan cleared, 3 days ago, so the UI can show "No blue screen since ...".
+    get_findings_history: fixtures.includes("resolved")
+      ? [{ id: "crashes", state: "resolved", firstSeen: timeAgo(12, 9, 0), lastSeen: timeAgo(4, 9, 0), lastEvidence: "2 blue screens in the last 7 days", resolvedAt: timeAgo(3, 9, 0), resolvedEvidence: "No blue screen in the last 7 days", cameBack: false }]
+      : [],
+    get_dump_analysis: fixtures.includes("savedDumps") ? { analyzedAt: timeAgo(1, 20, 0), dumps: Object.values(MOCK_DUMPS).map((x) => structuredClone(x)) } : null,
+  };
+  return extraState;
+}
+
+const FINDING_IDS = ["crashes", "valorant-req", "disk", "power-efficiency", "gpu-pref", "ram", "startup", "battery-worn", "hvci"];
+const OPEN_HOSTS = ["support.riotgames.com", "learn.microsoft.com", "apps.microsoft.com"];
+
+/** Same rules as findings.rs: only an Open finding can resolve, and ids not listed keep their state. */
+function recordScan(report: ScanReport): FindingRecord[] {
+  const all = [...report.open, ...report.clear];
+  if (all.some((e) => !FINDING_IDS.includes(e.id) || e.evidence.length > 300) || new Set(all.map((e) => e.id)).size !== all.length) {
+    throw new Error("Unknown or repeated finding");
+  }
+  const now = new Date().toISOString();
+  const list = extra().get_findings_history;
+  for (const e of report.open) {
+    const r = list.find((x) => x.id === e.id);
+    if (r) Object.assign(r, { cameBack: r.cameBack || r.state === "resolved", state: "open", lastSeen: now, lastEvidence: e.evidence, resolvedAt: null, resolvedEvidence: null });
+    else list.push({ id: e.id, state: "open", firstSeen: now, lastSeen: now, lastEvidence: e.evidence, resolvedAt: null, resolvedEvidence: null, cameBack: false });
+  }
+  for (const e of report.clear) {
+    const r = list.find((x) => x.id === e.id && x.state === "open");
+    if (r) Object.assign(r, { state: "resolved", resolvedAt: now, resolvedEvidence: e.evidence });
+  }
+  return structuredClone(list);
+}
+
+function mockSettings(s: Settings): Settings {
+  const t = s.autoClean.thresholdPercent;
+  if (!["light", "dark", "system"].includes(s.theme) || !Number.isInteger(t) || t < 60 || t > 95) {
+    throw new Error("Auto-clean threshold must be between 60% and 95%");
+  }
+  extra().get_settings = structuredClone(s);
+  return structuredClone(s);
+}
+
+function mockOpen(url: string): null {
+  const u = /^https:\/\/([^/?#]+)(\/[^?#]*)?/.exec(url);
+  const ok = url === "ms-settings:appsfeatures" || /^ms-windows-store:\/\/pdp\/\?PFN=[\w.-]+$/.test(url)
+    || (u && (OPEN_HOSTS.includes(u[1]) || (u[1] === "github.com" && /^\/KamalSDhami\/lagsmith(\/|$)/.test(u[2] ?? ""))));
+  if (!ok) throw new Error("Lagsmith can't open that link");
+  opened.push(url);
+  return null;
+}
+
+/** About 1.2 GB comes back, capped at what is cached. Counts are sample numbers (invented). */
+function mockCleanMemory(d: Commands): MemoryClean {
+  const m = d.get_memory;
+  const before = m.availableBytes;
+  const after = Math.min(m.totalBytes, before + Math.round(1.2 * GIB));
+  m.availableBytes = after;
+  const out = { beforeAvailableBytes: before, afterAvailableBytes: after, trimmed: 61, skippedProtected: 14, skippedOther: 9 };
+  d.get_history.unshift({
+    id: `set-${nextId++}`,
+    time: new Date().toISOString(),
+    title: "Memory cleaned",
+    items: [{ description: `Trimmed ${out.trimmed} apps. Available memory ${(before / GIB).toFixed(1)} GB to ${(after / GIB).toFixed(1)} GB`, status: "done", detail: "", undo: null, freedBytes: 0 }],
+    undone: false,
+  });
+  return out;
+}
+
+export function mockCall<K extends keyof (Commands & ExtraCommands)>(cmd: K): Promise<(Commands & ExtraCommands)[K]> {
   return later(cmd, () => {
-    const out = structuredClone(db()[cmd]);
+    if (cmd in extra()) return structuredClone(extra()[cmd as keyof ExtraCommands]) as (Commands & ExtraCommands)[K];
+    const out = structuredClone(db()[cmd as keyof Commands]) as (Commands & ExtraCommands)[K];
     // React StrictMode loads everything twice at start, so "the first look" is two calls; the Refresh button is the third and sees the repair finished.
     if (cmd === "get_background_repair" && params().getAll("fixture").includes("backgroundDone") && ++bgLooks >= 2) db().get_background_repair = [];
     return out;
@@ -482,9 +565,14 @@ function applyOne(d: Commands, c: ChangeRequest): ChangeItem[] {
 export function mockAct<K extends keyof ActionCommands>(cmd: K, args: ActionCommands[K]["args"]): Promise<ActionCommands[K]["result"]> {
   return later(cmd, () => {
     const d = db();
+    // App data and links work while a game runs; only things that change the system are refused.
+    if (cmd === "set_settings") return mockSettings((args as ActionCommands["set_settings"]["args"]).settings) as ActionCommands[K]["result"];
+    if (cmd === "record_scan") return recordScan((args as ActionCommands["record_scan"]["args"]).report) as ActionCommands[K]["result"];
+    if (cmd === "open_external") return mockOpen((args as ActionCommands["open_external"]["args"]).url) as ActionCommands[K]["result"];
     if (params().getAll("fixture").includes("gameRunning")) {
       throw new Error("VALORANT is running. Lagsmith doesn't change anything while a protected game is open. Close the game and try again.");
     }
+    if (cmd === "clean_memory") return mockCleanMemory(d) as ActionCommands[K]["result"];
     if (cmd === "apply_changes") {
       const a = args as ActionCommands["apply_changes"]["args"];
       const set: ChangeSet = {
@@ -591,6 +679,7 @@ export async function mockAdminTask(task: AdminTask, onEvent: (e: AdminEvent) =>
           ),
         );
       }
+      extra().get_dump_analysis = { analyzedAt: new Date().toISOString(), dumps: structuredClone(dumps) };
       return {
         task,
         ok: true,
@@ -599,6 +688,22 @@ export async function mockAdminTask(task: AdminTask, onEvent: (e: AdminEvent) =>
         exitCode: null,
         dumps,
       };
+    }
+    case "purge-standby": {
+      onEvent({ stage: "Clearing the standby list", percent: null });
+      await sleep(step);
+      const m = d.get_memory;
+      const before = m.availableBytes;
+      m.availableBytes = Math.min(m.totalBytes, before + Math.round(0.8 * GIB));
+      const message = `Cleared the standby list. Available memory ${(before / GIB).toFixed(1)} GB to ${(m.availableBytes / GIB).toFixed(1)} GB.`;
+      d.get_history.unshift({
+        id: `set-${nextId++}`,
+        time: new Date().toISOString(),
+        title: "Memory cleaned (standby list)",
+        items: [{ description: message, status: "done", detail: "", undo: null, freedBytes: 0 }],
+        undone: false,
+      });
+      return { task, ok: true, outcome: "purged", message, exitCode: 0, dumps: [] };
     }
     case "sfc": {
       onEvent({ stage: "Starting Windows Resource Protection scan", percent: 5 });

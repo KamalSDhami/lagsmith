@@ -98,6 +98,49 @@ export interface DriverUpdates { checkedAt: string; updates: DriverUpdate[] }
 
 export interface Security { memoryIntegrity: boolean }
 
+export interface MemoryClean {
+  /** GlobalMemoryStatusEx ullAvailPhys (Task Manager's "Available") before and after the run. */
+  beforeAvailableBytes: number;
+  afterAvailableBytes: number;
+  /** EmptyWorkingSet succeeded. */
+  trimmed: number;
+  /** Skipped by name before any handle opened: games, anti-cheat, Windows core processes, Lagsmith. */
+  skippedProtected: number;
+  /** Could not be opened (elevated or another user's) or had already exited. */
+  skippedOther: number;
+}
+
+export type ThemeSetting = "light" | "dark" | "system";
+export interface Settings {
+  theme: ThemeSetting;
+  sidebarCollapsed: boolean;
+  /** Read from the HKCU Run key, so it is what Windows will actually do. */
+  startWithWindows: boolean;
+  /** Off by default. No timer: it checks memory use every 30 s but only cleans when use crosses the threshold. */
+  autoClean: { enabled: boolean; thresholdPercent: number }; // 60 to 95
+}
+
+/** The ids deriveFindings emits. Rust refuses any other. */
+export type FindingId = "crashes" | "valorant-req" | "disk" | "power-efficiency" | "gpu-pref" | "ram" | "startup" | "battery-worn" | "hvci";
+export interface FindingEvidence { id: FindingId; evidence: string } // evidence max 300 characters
+/** One scan. `open`: condition present. `clear`: checked successfully and absent. Unlisted: not checked (read failed), state kept. */
+export interface ScanReport { open: FindingEvidence[]; clear: FindingEvidence[] }
+export interface FindingRecord {
+  id: FindingId;
+  state: "open" | "resolved";
+  firstSeen: string;
+  lastSeen: string;
+  lastEvidence: string;
+  resolvedAt: string | null;
+  resolvedEvidence: string | null;
+  /** Resolved earlier, open again now. */
+  cameBack: boolean;
+  /** Newest History change that touched it between first sighting and resolution. Context only. */
+  fixAppliedAt?: string;
+}
+
+export interface SavedDumpAnalysis { analyzedAt: string; dumps: DumpAnalysis[] }
+
 export type Commands = {
   get_hardware: Hardware;
   get_storage: Storage;
@@ -118,14 +161,30 @@ export type Commands = {
   get_background_repair: string[];
 };
 
+// Read commands for app data. Kept apart from `Commands` so the page-load list in useSystemData is unchanged.
+export type ExtraCommands = {
+  get_settings: Settings;
+  get_findings_history: FindingRecord[];
+  /** The last successful "Analyze dumps" run, or null if none yet. Survives restarts. */
+  get_dump_analysis: SavedDumpAnalysis | null;
+};
+
 // Commands that take arguments (all validated in Rust).
 export type ActionCommands = {
+  /** Refused while a game session runs (error text names it). Recorded in History as "Memory cleaned". */
+  clean_memory: { args: Record<string, never>; result: MemoryClean };
+  /** Strict: threshold outside 60..95 is an error. Returns what is stored. */
+  set_settings: { args: { settings: Settings }; result: Settings };
+  /** Call after each scan. Returns every stored finding with fixAppliedAt. */
+  record_scan: { args: { report: ScanReport }; result: FindingRecord[] };
+  /** Allow-listed links only: support.riotgames.com, learn.microsoft.com, apps.microsoft.com, github.com/KamalSDhami/lagsmith, ms-settings:appsfeatures, ms-windows-store://pdp/?PFN=... */
+  open_external: { args: { url: string }; result: null };
   apply_changes: { args: { title: string; changes: ChangeRequest[] }; result: ChangeSet };
   undo_change: { args: { id: string }; result: ChangeSet };
 };
 
 // Phase 3: elevated admin tasks (run_admin_task). Progress streams via Channel<AdminEvent>.
-export type AdminTask = "analyze-dumps" | "sfc" | "dism-restorehealth" | "restore-point";
+export type AdminTask = "analyze-dumps" | "sfc" | "dism-restorehealth" | "restore-point" | "purge-standby";
 
 export interface AdminEvent {
   stage: string;
