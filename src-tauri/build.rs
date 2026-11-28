@@ -22,6 +22,13 @@ fn main() {
         "run_admin_task",
         "get_background_repair",
         "close_app",
+        "get_settings",
+        "set_settings",
+        "get_findings_history",
+        "record_scan",
+        "get_dump_analysis",
+        "clean_memory",
+        "open_external",
     ])))
     .expect("failed to run tauri-build");
 }

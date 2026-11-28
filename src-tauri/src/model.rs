@@ -256,6 +256,26 @@ pub struct Memory {
     pub top_apps: Vec<AppMemory>, // top 8 by private working set (as Task Manager), grouped by exe name; anti-cheat processes skipped
 }
 
+/// clean_memory result. Every number is measured, none estimated: before/after are GlobalMemoryStatusEx
+/// ullAvailPhys (Task Manager's "Available"); the counts come from the one process snapshot taken for this run.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct MemoryClean {
+    pub before_available_bytes: u64,
+    pub after_available_bytes: u64,
+    pub trimmed: u32,            // EmptyWorkingSet succeeded
+    pub skipped_protected: u32,  // skipped by name before any handle: games, anti-cheat, Windows core, Lagsmith
+    pub skipped_other: u32,      // couldn't be opened (elevated or another user's) or had already exited
+}
+
+/// The last successful "Analyze dumps" run, kept so the result survives a restart.
+#[derive(Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct SavedDumpAnalysis {
+    pub analyzed_at: String,
+    pub dumps: Vec<DumpAnalysis>,
+}
+
 #[derive(Serialize, Clone, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct AppMemory {
@@ -299,12 +319,13 @@ pub struct AdminEvent {
 #[derive(Serialize, serde::Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AdminResult {
-    pub task: String,            // "analyze-dumps" | "sfc" | "dism-restorehealth" | "restore-point"
+    pub task: String,            // "analyze-dumps" | "sfc" | "dism-restorehealth" | "restore-point" | "purge-standby"
     pub ok: bool,
     // analyze-dumps: "analyzed" | "no_dumps" | "failed"
     // sfc: "no_problems" | "repaired" | "could_not_repair" | "failed"
     // dism-restorehealth: "no_problems" | "repaired" | "source_missing" | "failed"
     // restore-point: "created" | "already_exists" | "protection_off" | "failed"
+    // purge-standby: "purged" | "failed" (message carries available memory before and after)
     pub outcome: String,
     pub message: String,         // plain English for the UI
     pub exit_code: Option<u32>,  // sfc/dism process exit code

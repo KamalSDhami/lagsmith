@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-dump-analysis"
+description = "Enables the get_dump_analysis command without any pre-configured scope."
+commands.allow = ["get_dump_analysis"]
+
+[[permission]]
+identifier = "deny-get-dump-analysis"
+description = "Denies the get_dump_analysis command without any pre-configured scope."
+commands.deny = ["get_dump_analysis"]

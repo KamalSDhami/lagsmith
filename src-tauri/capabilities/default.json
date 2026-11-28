@@ -24,6 +24,13 @@
     "allow-run-admin-task",
     "allow-get-background-repair",
     "allow-close-app",
+    "allow-get-settings",
+    "allow-set-settings",
+    "allow-get-findings-history",
+    "allow-record-scan",
+    "allow-get-dump-analysis",
+    "allow-clean-memory",
+    "allow-open-external",
     "core:event:allow-listen",
     "core:event:allow-unlisten"
   ]

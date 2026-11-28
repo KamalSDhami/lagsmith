@@ -104,6 +104,7 @@ fn main() {
         "sfc" => run_sfc(&pipe),
         "dism-restorehealth" => run_dism(&pipe),
         "analyze-dumps" => dumps::run(|ev| pipe.send(&HelperMessage::Progress(ev))),
+        "purge-standby" => run_purge_standby(),
         _ => std::process::exit(EXIT_BAD_ARGS as i32),
     };
 
@@ -266,6 +267,58 @@ fn map_restore_error(code: u32) -> AdminResult {
         exit_code: Some(code),
         dumps: Vec::new(),
     }
+}
+
+// ---------- purge-standby
+
+/// Empties Windows' standby list, the cached pages RAM keeps for reuse. Needs admin and
+/// SeProfileSingleProcessPrivilege. The game gate in main() has already passed.
+fn run_purge_standby() -> AdminResult {
+    use windows::Win32::Security::{AdjustTokenPrivileges, LookupPrivilegeValueW, SE_PRIVILEGE_ENABLED, TOKEN_ADJUST_PRIVILEGES, TOKEN_PRIVILEGES};
+    use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
+    use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
+
+    // NtSetSystemInformation(SystemMemoryListInformation = 80, &MemoryPurgeStandbyList = 4), as RAMMap and Mem Reduct do.
+    const SYSTEM_MEMORY_LIST_INFORMATION: u32 = 80;
+    const MEMORY_PURGE_STANDBY_LIST: i32 = 4;
+    let avail = || {
+        let mut ms = MEMORYSTATUSEX { dwLength: size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
+        unsafe { GlobalMemoryStatusEx(&mut ms) }.map(|()| ms.ullAvailPhys).ok()
+    };
+    let fail = |message: String| AdminResult { task: "purge-standby".into(), ok: false, outcome: "failed".into(), message, exit_code: None, dumps: Vec::new() };
+
+    let mut token = HANDLE::default();
+    if unsafe { OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES, &mut token) }.is_err() {
+        return fail("Couldn't prepare the admin helper to clear the standby list.".into());
+    }
+    let mut privileges = TOKEN_PRIVILEGES { PrivilegeCount: 1, ..Default::default() };
+    privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    let enabled = unsafe { LookupPrivilegeValueW(PCWSTR::null(), w!("SeProfileSingleProcessPrivilege"), &mut privileges.Privileges[0].Luid) }.is_ok()
+        && unsafe { AdjustTokenPrivileges(token, false, Some(&privileges), 0, None, None) }.is_ok()
+        && unsafe { windows::Win32::Foundation::GetLastError() } == ERROR_SUCCESS; // AdjustTokenPrivileges succeeds with ERROR_NOT_ALL_ASSIGNED when it granted nothing
+    let _ = unsafe { CloseHandle(token) };
+    if !enabled {
+        return fail("Windows didn't give the admin helper permission to clear the standby list.".into());
+    }
+
+    let Ok(ntdll) = (unsafe { GetModuleHandleW(w!("ntdll.dll")) }) else { return fail("Couldn't reach the Windows memory manager.".into()) };
+    let Some(proc) = (unsafe { GetProcAddress(ntdll, s!("NtSetSystemInformation")) }) else { return fail("Couldn't reach the Windows memory manager.".into()) };
+    type NtSetSystemInformation = unsafe extern "system" fn(u32, *mut core::ffi::c_void, u32) -> i32;
+    let nt: NtSetSystemInformation = unsafe { core::mem::transmute(proc) };
+
+    let before = avail();
+    let mut command = MEMORY_PURGE_STANDBY_LIST;
+    let status = unsafe { nt(SYSTEM_MEMORY_LIST_INFORMATION, (&raw mut command).cast(), size_of::<i32>() as u32) };
+    if status < 0 {
+        return fail(format!("Windows refused to clear the standby list (status 0x{status:08X})."));
+    }
+    let gb = |b: u64| format!("{:.1} GB", b as f64 / (1u64 << 30) as f64);
+    let message = match (before, avail()) {
+        (Some(b), Some(a)) => format!("Cleared the standby list. Available memory {} to {}.", gb(b), gb(a)),
+        _ => "Cleared the standby list.".into(),
+    };
+    AdminResult { task: "purge-standby".into(), ok: true, outcome: "purged".into(), message, exit_code: Some(0), dumps: Vec::new() }
 }
 
 // ---------- sfc

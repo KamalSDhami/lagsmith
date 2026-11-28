@@ -4,7 +4,7 @@
 use crate::model::{AdminEvent, AdminResult};
 use serde::{Deserialize, Serialize};
 
-pub const ACTIONS: [&str; 4] = ["analyze-dumps", "sfc", "dism-restorehealth", "restore-point"];
+pub const ACTIONS: [&str; 5] = ["analyze-dumps", "sfc", "dism-restorehealth", "restore-point", "purge-standby"];
 
 // Helper exit codes when it never got as far as sending a result.
 pub const EXIT_BAD_ARGS: u32 = 2;

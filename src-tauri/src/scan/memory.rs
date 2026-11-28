@@ -11,9 +11,15 @@ use windows::Win32::System::ProcessStatus::{
 use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
 use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
 
-pub fn read() -> Result<Memory, String> {
+/// GlobalMemoryStatusEx: ullAvailPhys is the "Available" figure in Task Manager, dwMemoryLoad the percent in use.
+pub fn status() -> Result<MEMORYSTATUSEX, String> {
     let mut ms = MEMORYSTATUSEX { dwLength: size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
     unsafe { GlobalMemoryStatusEx(&mut ms) }.map_err(|e| format!("Couldn't read memory status: {e}"))?;
+    Ok(ms)
+}
+
+pub fn read() -> Result<Memory, String> {
+    let ms = status()?;
 
     let mut pi = PERFORMANCE_INFORMATION::default();
     unsafe { GetPerformanceInfo(&mut pi, size_of::<PERFORMANCE_INFORMATION>() as u32) }

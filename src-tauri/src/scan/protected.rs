@@ -41,15 +41,20 @@ pub fn gate(running: &[String]) -> Result<(), String> {
 
 /// Process image names from a snapshot. No process is ever opened.
 pub fn process_names() -> Result<Vec<String>, String> {
+    Ok(processes()?.into_iter().map(|p| p.1).collect())
+}
+
+/// (pid, image name) from one snapshot. No process is ever opened.
+pub fn processes() -> Result<Vec<(u32, String)>, String> {
     use windows::Win32::Foundation::CloseHandle;
     use windows::Win32::System::Diagnostics::ToolHelp::{CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW, TH32CS_SNAPPROCESS};
     let snap = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }.map_err(|e| format!("Couldn't list running programs: {e}"))?;
-    let mut names = Vec::new();
+    let mut names: Vec<(u32, String)> = Vec::new();
     let mut entry = PROCESSENTRY32W { dwSize: size_of::<PROCESSENTRY32W>() as u32, ..Default::default() };
     let mut more = unsafe { Process32FirstW(snap, &mut entry) }.is_ok();
     while more {
         let end = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(entry.szExeFile.len());
-        names.push(String::from_utf16_lossy(&entry.szExeFile[..end]));
+        names.push((entry.th32ProcessID, String::from_utf16_lossy(&entry.szExeFile[..end])));
         more = unsafe { Process32NextW(snap, &mut entry) }.is_ok();
     }
     let _ = unsafe { CloseHandle(snap) };

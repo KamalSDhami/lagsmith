@@ -6,6 +6,8 @@ pub mod protocol;
 
 use crate::model::{AdminEvent, AdminResult};
 use crate::scan::{protected, wide};
+mod saved;
+pub use saved::load_dumps;
 use protocol::{EXIT_BAD_ARGS, EXIT_GAME_RUNNING, EXIT_PIPE_REFUSED, EXIT_SYSTEM_DLL, HelperMessage, valid_action};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -37,6 +39,7 @@ fn task_label(task: &str) -> &'static str {
         "sfc" => "SFC",
         "dism-restorehealth" => "DISM",
         "restore-point" => "Restore point creation",
+        "purge-standby" => "Standby list purge",
         _ => "Crash dump analysis",
     }
 }
@@ -87,7 +90,10 @@ pub fn run_admin_task(task: &str, on_event: impl Fn(AdminEvent)) -> Result<Admin
     if pid == 0 {
         return Err("Couldn't identify the admin helper process".into());
     }
-    serve(&pipe, &process, Some(pid), on_event)
+    let result = serve(&pipe, &process, Some(pid), on_event)?;
+    // Saved here, in the app: the elevated helper never writes to the user's profile. Failing to save never fails the task.
+    let _ = saved::after_task(&result);
+    Ok(result)
 }
 
 /// lagsmith-helper.exe beside the running exe. Never PATH or the current directory.

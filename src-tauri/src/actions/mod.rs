@@ -2,6 +2,7 @@
 //! anti-cheat process runs, and recorded in History for undo. Arguments from the UI and the
 //! history file are both treated as untrusted.
 
+pub mod memclean;
 mod clean;
 mod settings;
 mod store;
@@ -58,6 +59,15 @@ pub fn undo_change(id: String) -> Result<ChangeSet, String> {
     Ok(returned)
 }
 
+/// Adds one entry to History (no undo). Used by the memory cleaner and the standby purge.
+pub fn record(title: String, items: Vec<ChangeItem>) -> Result<(), String> {
+    let _guard = LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let path = history_path()?;
+    let mut history = load_history(&path)?;
+    history.push(new_set(title, items));
+    save_history(&path, &history)
+}
+
 pub fn get_history() -> Result<Vec<ChangeSet>, String> {
     let _guard = LOCK.lock().unwrap_or_else(|p| p.into_inner());
     let mut h = load_history(&history_path()?)?;
@@ -86,7 +96,7 @@ pub(crate) fn valid_cache(id: &str) -> Result<(), String> {
 
 // ---------- Applying
 
-fn item(description: String, result: Result<Option<UndoData>, String>) -> ChangeItem {
+pub(crate) fn item(description: String, result: Result<Option<UndoData>, String>) -> ChangeItem {
     match result {
         Ok(undo) => ChangeItem { description, status: "done".into(), detail: String::new(), undo, freed_bytes: 0, reinstall_pfn: None },
         Err(e) => ChangeItem { description, status: "failed".into(), detail: e, undo: None, freed_bytes: 0, reinstall_pfn: None },
@@ -293,8 +303,7 @@ fn new_set(title: String, items: Vec<ChangeItem>) -> ChangeSet {
 // ---------- History file
 
 fn history_path() -> Result<PathBuf, String> {
-    let base = crate::scan::known_folder(&windows::Win32::UI::Shell::FOLDERID_LocalAppData).ok_or("Couldn't find your app data folder")?;
-    Ok(base.join("io.github.kamalsdhami.lagsmith").join("history.json"))
+    crate::appdata::file("history.json")
 }
 
 pub(crate) fn load_history(path: &Path) -> Result<Vec<ChangeSet>, String> {
