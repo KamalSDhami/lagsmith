@@ -1,41 +1,179 @@
 @import "@fontsource-variable/inter";
 @import "tailwindcss";
 
-/* Light palette. Dark mode is undecided, so only light tokens exist for now. */
+/* Tokens. Light is the reference. Dark is true-neutral grey (R = G = B), set by [data-theme="dark"] on <html>.
+   Colours are CSS variables so Tailwind utilities (bg-surface, text-muted...) follow the theme. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 @theme {
-  --font-sans: "Inter Variable", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-sans: "Inter Variable", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
 
-  --color-canvas: #f6f6f8;
-  --color-sidebar: #f0f0f3;
-  --color-surface: #ffffff;
-  --color-line: #e7e7ec;
-  --color-ink: #1c1c1f;
-  --color-muted: #5f5f67;
-  --color-subtle: #eeeef2;
+  /* Surfaces and text. Values live in :root / [data-theme=dark] below; @theme maps them to utilities. */
+  --color-canvas: var(--c-canvas);
+  --color-sidebar: var(--c-sidebar);
+  --color-surface: var(--c-surface);
+  --color-raised: var(--c-raised);
+  --color-line: var(--c-line);
+  --color-ink: var(--c-ink);
+  --color-muted: var(--c-muted);
+  --color-subtle: var(--c-subtle);
+  --color-hover: var(--c-hover);
+  --color-strong: var(--c-strong);
 
-  /* Indigo / lavender accent, used sparingly. */
-  --color-accent: #4f4cd0;
-  --color-accent-soft: #e8e7fb;
-  --color-accent-bar: #5b58dc;
+  --color-accent: var(--c-accent);
+  --color-accent-soft: var(--c-accent-soft);
+  --color-accent-bar: var(--c-accent-bar);
+  --color-tile: var(--c-tile);
+  --color-tile-ink: var(--c-tile-ink);
 
-  /* Stat-card icon tiles. Matches the approved image (pale lavender).
-     Switch to var(--color-subtle) / var(--color-ink) for neutral tiles. */
-  --color-tile: #efeefc;
-  --color-tile-ink: #4f4cd0;
+  --color-primary: var(--c-primary);
+  --color-primary-ink: var(--c-primary-ink);
+  --color-primary-hover: var(--c-primary-hover);
+  --color-primary-off: var(--c-primary-off);
 
-  /* Status colours: only for pills and status icon tiles. */
-  --color-danger: #b4232b;
-  --color-danger-soft: #fdeced;
-  --color-warning: #8a5300;
-  --color-warning-soft: #fdf1d8;
-  --color-warning-icon: #b07000;
-  --color-success: #1b7136;
-  --color-success-soft: #e3f5e8;
-  --color-info: #2462c9;
-  --color-info-soft: #e7effc;
+  --color-off: var(--c-off);
 
-  --shadow-card: 0 1px 2px rgb(20 20 40 / 0.04), 0 1px 1px rgb(20 20 40 / 0.02);
-  --shadow-pop: 0 12px 32px rgb(20 20 40 / 0.12), 0 2px 6px rgb(20 20 40 / 0.06);
+  --color-danger: var(--c-danger);
+  --color-danger-soft: var(--c-danger-soft);
+  --color-warning: var(--c-warning);
+  --color-warning-soft: var(--c-warning-soft);
+  --color-warning-icon: var(--c-warning-icon);
+  --color-success: var(--c-success);
+  --color-success-soft: var(--c-success-soft);
+  --color-info: var(--c-info);
+  --color-info-soft: var(--c-info-soft);
+
+  --color-data-1: var(--c-data-1);
+  --color-data-2: var(--c-data-2);
+  --color-data-3: var(--c-data-3);
+  --color-data-4: var(--c-data-4);
+
+  --shadow-card: var(--s-card);
+  --shadow-pop: var(--s-pop);
+
+  /* Spacing scale, 4 px base. Use p-4, gap-4, etc. (Tailwind's 0.25rem steps already match); these name the roles. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 48px;
+
+  /* Radius: card 16, control 10, small control 8, dialog 20. */
+  --radius-card: 16px;
+  --radius-control: 10px;
+  --radius-small: 8px;
+  --radius-dialog: 20px;
+
+  /* Type scale (spec 5.2). Pair with leading + weight utilities. */
+  --text-h1: 1.625rem;
+  --text-h1--line-height: 2rem;
+  --text-h2: 1.125rem;
+  --text-h2--line-height: 1.5rem;
+  --text-card: 0.9375rem;
+  --text-card--line-height: 1.25rem;
+  --text-metric: 1.375rem;
+  --text-metric--line-height: 1.75rem;
+  --text-body: 0.875rem;
+  --text-body--line-height: 1.25rem;
+  --text-secondary: 0.8125rem;
+  --text-secondary--line-height: 1.125rem;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+}
+
+:root {
+  color-scheme: light;
+  --c-canvas: #f6f6f8;
+  --c-sidebar: #f0f0f3;
+  --c-surface: #ffffff;
+  --c-raised: #ffffff;
+  --c-line: #e7e7ec;
+  --c-ink: #1c1c1f;
+  --c-muted: #5f5f67;
+  --c-subtle: #eeeef2;
+  --c-hover: #e7e7ec;
+  --c-strong: #d4d4dc;
+
+  --c-accent: #4f4cd0;
+  --c-accent-soft: #e8e7fb;
+  --c-accent-bar: #5b58dc;
+  --c-tile: #efeefc;
+  --c-tile-ink: #4f4cd0;
+
+  --c-primary: #1c1c1f;
+  --c-primary-ink: #ffffff;
+  --c-primary-hover: #33333a;
+  --c-primary-off: #55555c;
+
+  --c-off: #8e8e98;
+
+  --c-danger: #b4232b;
+  --c-danger-soft: #fdeced;
+  --c-warning: #8a5300;
+  --c-warning-soft: #fdf1d8;
+  --c-warning-icon: #b07000;
+  --c-success: #1b7136;
+  --c-success-soft: #e3f5e8;
+  --c-info: #2462c9;
+  --c-info-soft: #e7effc;
+
+  --c-data-1: #5b58dc;
+  --c-data-2: #8f8dea;
+  --c-data-3: #c2c0f2;
+  --c-data-4: #8e8e98;
+
+  --s-card: 0 1px 2px rgb(20 20 40 / 0.04), 0 1px 1px rgb(20 20 40 / 0.02);
+  --s-pop: 0 12px 32px rgb(20 20 40 / 0.12), 0 2px 6px rgb(20 20 40 / 0.06);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --c-canvas: #161616;
+  --c-sidebar: #1c1c1c;
+  --c-surface: #202020;
+  --c-raised: #2a2a2a;
+  --c-line: #353535;
+  --c-ink: #f5f5f5;
+  --c-muted: #a3a3a3;
+  --c-subtle: #292929;
+  --c-hover: #2c2c2c;
+  --c-strong: #4a4a4a;
+
+  --c-accent: #9d9bf5;
+  --c-accent-soft: #2e2e3d;
+  --c-accent-bar: #8280e8;
+  --c-tile: #2a2a38;
+  --c-tile-ink: #9d9bf5;
+
+  --c-primary: #f5f5f5;
+  --c-primary-ink: #161616;
+  --c-primary-hover: #dcdcdc;
+  --c-primary-off: #8a8a8a;
+
+  --c-off: #5a5a5a;
+
+  --c-danger: #ff8f94;
+  --c-danger-soft: #3a2123;
+  --c-warning: #f2b84b;
+  --c-warning-soft: #372d17;
+  --c-warning-icon: #f2b84b;
+  --c-success: #6fcf8a;
+  --c-success-soft: #1d3123;
+  --c-info: #86b6ff;
+  --c-info-soft: #1c2a3f;
+
+  --c-data-1: #9d9bf5;
+  --c-data-2: #7a78d8;
+  --c-data-3: #5a58a8;
+  --c-data-4: #8a8a8a;
+
+  /* Dark: borders carry depth, cards get no shadow. */
+  --s-card: none;
+  --s-pop: 0 12px 32px rgb(0 0 0 / 0.5), 0 0 0 1px #3d3d3d;
 }
 
 @layer base {
@@ -49,6 +187,8 @@
     background: var(--color-canvas);
     color: var(--color-ink);
     font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
     -webkit-font-smoothing: antialiased;
   }
   :focus-visible {
@@ -60,6 +200,28 @@
   }
   button:disabled {
     cursor: default;
+  }
+  ::selection {
+    background: var(--color-accent-soft);
+    color: var(--color-ink);
+  }
+  code,
+  kbd,
+  .font-code {
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
+  /* Tabular figures wherever numbers align or change. */
+  .tnum,
+  table,
+  [role="progressbar"] {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Themed scrollbars (WebView2 and Chromium). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-strong) transparent;
   }
 }
 
@@ -81,4 +243,19 @@ h1:focus {
 [data-flash] {
   background-color: var(--color-accent-soft) !important;
   transition: background-color 0.3s;
+}
+
+/* Sticky ActionBar rise (state only; none under reduced motion via the rule above). */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: rise 150ms cubic-bezier(0.22, 1, 0.36, 1);
 }

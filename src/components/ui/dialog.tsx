@@ -31,7 +31,7 @@ export function Dialog({
         onClose();
       }}
       className={cn(
-        "m-auto max-h-[calc(100vh-4rem)] w-[34rem] max-w-[calc(100vw-4rem)] rounded-[20px] border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-[rgb(20_20_30/0.28)]",
+        "m-auto max-h-[calc(100vh-4rem)] w-[34rem] max-w-[calc(100vw-4rem)] rounded-[20px] border border-line bg-surface p-0 text-ink shadow-pop backdrop:bg-black/40",
         className,
       )}
     >

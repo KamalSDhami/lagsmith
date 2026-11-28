@@ -20,7 +20,7 @@ export function Tabs<T extends string>({
           aria-selected={t.id === value}
           onClick={() => onChange(t.id)}
           className={cn(
-            "h-8 rounded-full border px-3.5 text-[0.8125rem] font-medium transition-colors",
+            "h-8 rounded-full border px-3.5 text-secondary font-medium transition-colors",
             t.id === value ? "border-transparent bg-accent-soft text-accent" : "border-line bg-surface text-ink hover:bg-subtle",
           )}
         >

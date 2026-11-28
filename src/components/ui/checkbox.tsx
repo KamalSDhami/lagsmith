@@ -16,7 +16,7 @@ export function Checkbox({
       checked={checked}
       disabled={disabled}
       onChange={(e) => onChange?.(e.currentTarget.checked)}
-      className="size-[1.125rem] shrink-0 cursor-pointer rounded accent-[#5b58dc] disabled:cursor-default disabled:opacity-50"
+      className="size-[1.125rem] shrink-0 cursor-pointer rounded accent-accent-bar disabled:cursor-default disabled:opacity-50"
     />
   );
 }

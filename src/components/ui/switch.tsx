@@ -23,7 +23,7 @@ export function Switch({
       onClick={() => !unknown && onChange?.(!checked)}
       className={cn(
         "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50",
-        checked ? "bg-accent-bar" : "bg-[#8e8e98]",
+        checked ? "bg-accent-bar" : "bg-off",
       )}
     >
       <span
@@ -38,7 +38,7 @@ export function Switch({
   if (!unknown) return control;
   return (
     <span className="flex items-center gap-2">
-      <span className="text-[0.8125rem] text-muted">Unknown</span>
+      <span className="text-secondary text-muted">Unknown</span>
       {control}
     </span>
   );

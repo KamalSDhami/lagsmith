@@ -11,11 +11,12 @@ const tones: Record<Tone, string> = {
   neutral: "bg-subtle text-ink",
 };
 
+/** Caption-size pill. */
 export function Badge({ tone = "neutral", children, className }: { tone?: Tone; children: ReactNode; className?: string }) {
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center rounded-lg px-3 text-[0.8125rem] font-medium whitespace-nowrap",
+        "inline-flex h-6 items-center rounded-full px-2.5 text-caption font-medium whitespace-nowrap",
         tones[tone],
         className,
       )}
