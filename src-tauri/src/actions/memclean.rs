@@ -170,4 +170,11 @@ mod tests {
         assert!(!w.should_clean(0, 84, 85, false));
         assert!(!Watch::new().should_clean(0, 0, 60, false));
     }
+
+    /// Really trims this PC's user apps once. `cargo test -j 3 live_clean -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn live_clean() {
+        println!("{:#?}", clean(false));
+    }
 }
