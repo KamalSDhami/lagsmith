@@ -143,7 +143,7 @@ function base(): Commands {
     get_system: {
       // invented sizes; the case study only says the page file is auto-managed
       pageFile: { autoManaged: true, allocatedBytes: gb(2.4), usedBytes: gb(0.6), peakBytes: gb(1.1) },
-      power: { plan: "Balanced", mode: "balanced", onBattery: false, batteryPercent: null, batteryDesignWh: null, batteryFullWh: null },
+      power: { plan: "Balanced", mode: "balanced", hasBattery: false, onBattery: false, batteryPercent: null, batteryDesignWh: null, batteryFullWh: null },
       hyperVRunning: true,
       wslDistros: ["Ubuntu"],
       gameMode: true,
@@ -275,7 +275,7 @@ const FIXTURES: Record<string, Fixture> = {
   },
   // Sample battery figures (the default mock has none, because they were never measured).
   battery: (d) => {
-    Object.assign(d.get_system.power, { onBattery: false, batteryPercent: 65, batteryDesignWh: 57, batteryFullWh: 48 });
+    Object.assign(d.get_system.power, { hasBattery: true, onBattery: false, batteryPercent: 65, batteryDesignWh: 57, batteryFullWh: 48 });
   },
   gameRunning: () => {},
   // WSL older than 2.3: moving a distro is refused with an "update WSL" message.

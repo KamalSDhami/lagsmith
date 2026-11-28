@@ -21,3 +21,10 @@ fn live_scan() {
     println!("disk usage: {:#?} ({:?})", super::diskusage::read(), t.elapsed());
     println!("store apps: {:#?}", super::storeapps::read());
 }
+
+#[test]
+#[ignore]
+fn live_power() {
+    println!("battery driver (design, full mWh): {:?}", super::battery::capacity_mwh());
+    println!("power: {:#?}", super::system::read().map(|s| s.power));
+}

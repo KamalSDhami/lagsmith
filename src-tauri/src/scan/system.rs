@@ -124,6 +124,7 @@ fn power() -> Power {
     let has_battery = have_status && ps.BatteryFlag != 128 && ps.BatteryFlag != 255;
     let (design, full) = battery_capacity();
     Power {
+        has_battery: has_battery || design.is_some() || full.is_some(),
         plan: plan_name().unwrap_or_default(),
         mode: current_overlay().map_or("unknown", |g| overlay_mode(&g)).into(),
         on_battery: have_status && ps.ACLineStatus == 0,
@@ -147,11 +148,18 @@ fn plan_name() -> Option<String> {
 }
 
 fn battery_capacity() -> (Option<f32>, Option<f32>) {
-    let Ok(wmi) = WMIConnection::with_namespace_path(r"root\wmi") else { return (None, None) };
     let wh = |mwh: Option<u32>| mwh.filter(|&v| v > 0).map(|v| v as f32 / 1000.0);
+    let (wmi_design, wmi_full) = wmi_capacity();
+    // WMI first (as before); the battery driver fills in what WMI couldn't read.
+    let (drv_design, drv_full) = super::battery::capacity_mwh();
+    (wh(wmi_design.or(drv_design)), wh(wmi_full.or(drv_full)))
+}
+
+fn wmi_capacity() -> (Option<u32>, Option<u32>) {
+    let Ok(wmi) = WMIConnection::with_namespace_path(r"root\wmi") else { return (None, None) };
     // Summed so a second battery (some ThinkPads) counts; a slot with no battery reports no row or 0.
-    let design = wmi.query::<BatteryStaticData>().ok().and_then(|r| wh(Some(r.iter().filter_map(|b| b.DesignedCapacity).sum())));
-    let full = wmi.query::<BatteryFullChargedCapacity>().ok().and_then(|r| wh(Some(r.iter().filter_map(|b| b.FullChargedCapacity).sum())));
+    let design = wmi.query::<BatteryStaticData>().ok().map(|r| r.iter().filter_map(|b| b.DesignedCapacity).sum::<u32>()).filter(|&v| v > 0);
+    let full = wmi.query::<BatteryFullChargedCapacity>().ok().map(|r| r.iter().filter_map(|b| b.FullChargedCapacity).sum::<u32>()).filter(|&v| v > 0);
     (design, full)
 }
 

@@ -40,6 +40,8 @@ export interface PageFile { autoManaged: boolean; allocatedBytes: number; usedBy
 export interface Power {
   plan: string;
   mode: "best_performance" | "balanced" | "best_efficiency" | "unknown";
+  /** False on desktops. True when Windows reports a battery or its capacity could be read. */
+  hasBattery: boolean;
   onBattery: boolean;
   batteryPercent: number | null;
   batteryDesignWh: number | null;

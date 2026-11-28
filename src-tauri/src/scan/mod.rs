@@ -1,4 +1,5 @@
 pub mod anticheat;
+pub mod battery;
 pub mod diskusage;
 pub mod drivers;
 pub mod dumps;

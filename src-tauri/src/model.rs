@@ -105,6 +105,7 @@ pub struct PageFile { pub auto_managed: bool, pub allocated_bytes: u64, pub used
 pub struct Power {
     pub plan: String,            // "Balanced"
     pub mode: String,            // "best_performance" | "balanced" | "best_efficiency" | "unknown" (overlay)
+    pub has_battery: bool,       // GetSystemPowerStatus BatteryFlag not 128/255, or a capacity was read; false on desktops
     pub on_battery: bool,
     pub battery_percent: Option<u8>,
     pub battery_design_wh: Option<f32>,
