@@ -14,7 +14,8 @@ test("dashboard", async ({ page }) => {
   await expect(page.getByText("4 apps")).toBeVisible();
   await expect(page.getByText("Up to date")).toBeVisible();
   await expect(page.getByText("Recent blue screens")).toBeVisible();
-  await expect(page.getByText("Windows 11", { exact: true })).toBeVisible();
+  // The sidebar footer no longer shows the OS name (it is on Hardware).
+  await expect(page.getByText("Windows 11", { exact: true })).toHaveCount(0);
   await expect(page.getByText("System Ready")).toHaveCount(0);
   await expectFits(page);
 });

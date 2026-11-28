@@ -115,10 +115,10 @@ test("settings: sidebar choice, auto-clean switch and threshold stepper", async 
   await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", "true");
   await page.getByRole("button", { name: "Raise threshold by 5 percent" }).click();
-  await expect(page.getByLabel("Threshold")).toHaveText("90%");
+  await expect(page.getByRole("status", { name: "Threshold" })).toHaveText("90%");
   await page.reload();
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await expect(page.getByLabel("Threshold")).toHaveText("90%");
+  await expect(page.getByRole("status", { name: "Threshold" })).toHaveText("90%");
   await expect(page.getByRole("switch", { name: "Auto-clean memory" })).toHaveAttribute("aria-checked", "true");
 });
 
