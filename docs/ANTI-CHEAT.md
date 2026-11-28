@@ -7,7 +7,7 @@ Lagsmith is used by people who play games protected by kernel anti-cheat (Riot V
 1. **Open a handle to a game or anti-cheat process,** not even query-only. The list is in `src-tauri/src/scan/protected.rs`. Process names from the snapshot list are fine; opening the process is not.
 2. **Read or write another process's memory,** inject DLLs, hook functions, or draw overlays inside a game.
 3. **Load or ship a kernel driver.** That includes "hardware monitor" drivers such as WinRing0, which Vanguard blocks and flags as vulnerable. For temperatures and fan speeds, use only what Windows exposes without a driver, or leave the feature out.
-4. **Change a protected process's priority, CPU affinity, working set ("RAM trim"), or I/O priority,** or suspend or kill it.
+4. **Change a protected process's priority, CPU affinity, working set ("RAM trim"), or I/O priority,** or suspend or kill it. The RAM cleaner (manual button, and optional auto-clean when memory use passes a user-set percent) trims only normal user apps: protected names, Windows core processes and Lagsmith are skipped by name before any handle is opened, and it never runs during a game session. There is no timer: the auto-clean watcher only reads memory use and acts when it crosses the threshold, and it never runs the standby-list purge, which always needs a user click and a UAC prompt.
 5. **Disable, remove, delay or "debloat" anti-cheat services or drivers** (`vgc`, `vgk`, EasyAntiCheat, BEService, FACEIT) or their startup entries. Anti-cheat startup entries never appear as "switch off" suggestions.
 6. **Touch game files or anti-cheat folders:** no cleaning, moving or scanning of `C:\Program Files\Riot Vanguard`, `Riot Games`, or any game install or anti-cheat folder.
 7. **Toggle security features anti-cheats depend on:** Memory Integrity (HVCI), VBS, Secure Boot, TPM, test signing, or driver signature enforcement. Lagsmith may explain them; it never changes them.
@@ -19,6 +19,7 @@ Lagsmith is used by people who play games protected by kernel anti-cheat (Riot V
 - Setting the per-app GPU preference for a game in `HKCU\Software\Microsoft\DirectX\UserGpuPreferences`. This is what Settings → Display → Graphics writes.
 - Game Mode, Game Bar capture and power mode.
 - Cleaning user caches that don't belong to games or anti-cheat.
+- Trimming the working set of normal user apps (`actions/memclean.rs`), and clearing the standby list through the admin helper (`purge-standby`), outside game sessions.
 - Running SFC and DISM, and checking Windows Update for drivers.
 
 ## Before adding a feature

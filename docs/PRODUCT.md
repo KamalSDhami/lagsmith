@@ -22,7 +22,7 @@ Find out why a Windows PC is slow or crashing, show the evidence, and apply only
 
 ## Positioning
 
-Diagnose first, then fix with consent. Every finding cites its source (Windows Event Log, crash dumps, WMI hardware data, measured folder sizes). Not a "PC booster": no fake health scores, no RAM cleaners, no registry optimizers.
+Diagnose first, then fix with consent. Every finding cites its source (Windows Event Log, crash dumps, WMI hardware data, measured folder sizes). Not a "PC booster": no fake health scores, no timer-based RAM cleaners, no registry optimizers.
 
 ## Operating Context
 
@@ -32,7 +32,7 @@ Flow: Scan, Report, Review and tick, Apply, Results with Undo. Long-running admi
 
 v1: Dashboard, Scan, Crash Detective (event logs and dump suspects), Hardware Check (RAM slots and channels, graphics, disks), Storage Cleaner (fixed allow-list of known caches only: npm, Gradle, uv, Dart, pip, cargo, temp), Startup Manager (Task Manager's reversible StartupApproved toggle), Gaming Mode (Game Mode, Game Bar capture, power mode), Review and Apply, Results, History and Undo, Settings.
 v2: data mover (WSL, SDKs) with free-space checks, System Repair runner (SFC/DISM with live progress), Debloat (fixed Store-app list), exact faulting-driver analysis from dumps.
-Memory (decided 26 Nov 2026, user asked for Mem Reduct-like features): no automatic threshold-based RAM purging, which empties the standby cache and causes game stutter. Instead: v1 read-only memory panel (per-app usage, compressed memory, standby and modified lists, page file); later a "close before gaming" list, an optional one-time "trim background apps" before a game, and a standby-list purge only when a real problem is detected, opt-in and explained (needs the admin helper). Implemented from Windows APIs directly; no Mem Reduct (GPLv3) code.
+Memory (owner decision 28 Nov 2026, replacing the 26 Nov "no automatic cleaning" rule): a manual **Clean memory** button that trims the working set of normal user apps, an optional standby-list purge (admin helper, UAC every run), and an optional **auto-clean** that is off by default and fires when memory use passes a user-set percent (60 to 95). Never a timer, never protected or system processes, never during a game session (`vgc.exe` included), and the auto-clean never purges the standby list. Each run is logged in History as "can't be undone". Implemented from Windows APIs directly; no Mem Reduct (GPLv3) code.
 App name: Lagsmith (renamed from System Ready on 26 Nov 2026; the design still shows the old name). Approved design: light dashboard on Doop canvas KQV3ZmmkNI, references in references/EXACT-light.webp.
 Never auto-deletes unknown folders or user data (for example Hugging Face models). Memory Integrity is explained, never toggled automatically. Name: Lagsmith.
 
