@@ -1,5 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { Sidebar } from "./components/Sidebar";
+import { Sidebar, useSidebar } from "./components/Sidebar";
+import { SampleBanner } from "./components/SampleBanner";
+import { SettingsPage } from "./pages/SettingsPage";
+import { loadSettings, watchSystemTheme } from "./lib/settings";
+import { navDots } from "./lib/navDots";
 import { TopBar } from "./components/TopBar";
 import { ScanHero } from "./components/ScanHero";
 import { StatCards } from "./components/StatCards";
@@ -16,10 +20,10 @@ import { CloseGuard } from "./components/CloseGuard";
 import { RepairPage } from "./pages/RepairPage";
 import { HistoryPage } from "./pages/HistoryPage";
 import { DebloatPage } from "./pages/DebloatPage";
-import { type Page } from "./pages/nav";
+import { PAGE_LAYOUT, type Page } from "./pages/nav";
 import { NavContext, type Go } from "./lib/navContext";
 import { SysContext, useSystemData, value, type Cmd } from "./lib/useSystemData";
-import { greeting, shortOs } from "./lib/format";
+import { greeting } from "./lib/format";
 
 /** Commands a page loads on first visit (the rest load at start). */
 const PAGE_NEEDS: Partial<Record<Page, Cmd[]>> = {
@@ -41,7 +45,14 @@ export default function App() {
 
   const hw = value(data.get_hardware);
   const userName = hw?.userName || null;
-  const osName = hw ? shortOs(hw.os) : null;
+  const { collapsed, toggle } = useSidebar();
+  const dots = navDots(data);
+  const layout = PAGE_LAYOUT[page];
+
+  useEffect(() => {
+    void loadSettings();
+    return watchSystemTheme();
+  }, []);
 
   useEffect(() => {
     main.current?.scrollTo({ top: 0 });
@@ -77,7 +88,7 @@ export default function App() {
 
   return (
     <SysContext.Provider value={sys}>
-      <NavContext.Provider value={{ from: target.from, go }}>
+      <NavContext.Provider value={{ from: target.from, go, layout }}>
       <ReviewProvider>
         <CloseGuard />
         <button
@@ -86,10 +97,21 @@ export default function App() {
         >
           Skip to content
         </button>
-        <div className="flex h-full min-w-[1100px]">
-          <Sidebar page={page} onNavigate={(p) => go(p)} osName={osName} scanning={scanning} finishedAt={scan?.finishedAt ?? null} onScan={startScan} />
+        <div className="flex h-full min-w-[1100px] flex-col">
+          <SampleBanner />
+          <div className="flex min-h-0 flex-1">
+          <Sidebar
+            page={page}
+            onNavigate={(p) => go(p)}
+            scanning={scanning}
+            finishedAt={scan?.finishedAt ?? null}
+            onScan={startScan}
+            collapsed={collapsed}
+            onToggle={toggle}
+            dots={dots}
+          />
           <main ref={main} id="main" className="min-w-0 flex-1 overflow-y-auto">
-            <div className="mx-auto flex h-full max-w-[1440px] flex-col px-6 pt-5 pb-5">
+            <div className={`mx-auto flex max-w-[1200px] flex-col px-6 py-5 ${layout === "fit" ? "h-full" : "min-h-full"}`}>
               {page === "dashboard" && (
                 <div className="flex flex-col gap-4">
                   <TopBar
@@ -111,8 +133,10 @@ export default function App() {
               {page === "repair" && <RepairPage />}
               {page === "history" && <HistoryPage />}
               {page === "debloat" && <DebloatPage />}
+              {page === "settings" && <SettingsPage />}
             </div>
           </main>
+          </div>
         </div>
       </ReviewProvider>
       </NavContext.Provider>

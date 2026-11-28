@@ -819,3 +819,69 @@ Layout: `flow`, single column, `max-width 720`, left aligned. Section headings (
 8. Resolved markers come only from persisted re-scan evidence ("No blue screen since <last crash date>"), shown on Dashboard, nav dots, owning pages and History; never from a click.
 9. Memory page: Clean memory plus opt-in threshold auto-clean in one controls card, honest copy, protected processes excluded by name, paused in games; mirrored in the new Settings page.
 10. Shell: collapsing sidebar (rail below 1200, Ctrl+B, tooltips, no hover-expand, nav finding dots), Settings pinned at the bottom, Sample data banner, one spacing/type/radius/button scale, Fluent icons, Inter plus Cascadia Mono, and neutral-grey dark tokens.
+
+---
+
+## Appendix A. Shell implemented (28 Nov 2026) and hand-off to the page work
+
+Built: tokens (`src/index.css`), theme init (`public/theme-init.js`), Fluent icons, sidebar, Settings, sample banner, `Page` flow/fit, `ActionBar`, `Tooltip`, `Segmented`, `FindingChip`, `SummaryStrip`.
+
+### A.1 Icon mapping (Lucide to Fluent, package `@fluentui/react-icons`)
+
+Import per icon (`import { HomeRegular, HomeFilled } from "@fluentui/react-icons"`), size with `fontSize={20}` (nav, card glyph), `16` (inline, buttons, status). There is no `strokeWidth`. Regular everywhere; Filled only for the active nav item. Verified exports exist in v2.0.347.
+
+| Lucide (current) | Fluent |
+|---|---|
+| House | `HomeRegular` |
+| Search | `SearchRegular` |
+| TriangleAlert | `WarningRegular` |
+| Cpu | `DeveloperBoardRegular` |
+| MemoryStick | `RamRegular` |
+| Layers (Storage Cleaner) | `BroomRegular` (drives: `HardDriveRegular`, `StorageRegular`) |
+| Power | `PowerRegular` |
+| Gamepad2 | `XboxControllerRegular` |
+| Wrench | `WrenchRegular` |
+| LayoutGrid | `AppsRegular` |
+| History | `HistoryRegular` |
+| Settings | `SettingsRegular` |
+| Monitor | `DesktopRegular` |
+| Battery | `Battery10Regular` (also `BatteryChargeRegular`, `BatteryWarningRegular`) |
+| ShieldCheck | `ShieldRegular` (`ShieldCheckmarkRegular` also exists) |
+| Info | `InfoRegular` |
+| CircleCheck | `CheckmarkCircleRegular` |
+| CircleX | `DismissCircleRegular` |
+| ArrowLeft | `ArrowLeftRegular` |
+| ArrowRight | `ArrowRightRegular` |
+| RefreshCw | `ArrowSyncRegular` |
+| LoaderCircle | `SpinnerIosRegular` (add `motion-safe:animate-spin`) |
+| Plus / Minus | `AddRegular` / `SubtractRegular` |
+| ChevronDown / Right | `ChevronDownRegular` / `ChevronRightRegular` |
+| X | `DismissRegular` |
+| Check | `CheckmarkRegular` |
+| Lock | `LockClosedRegular` |
+| Play | `PlayRegular` |
+| Trash2 | `DeleteRegular` |
+| Undo2 | `ArrowUndoRegular` |
+| Activity (Stability tile) | `PulseRegular` |
+| Download / external link | `ArrowDownloadRegular` / `OpenRegular` |
+
+Names not in this table: look up the export in `node_modules/@fluentui/react-icons/lib/icons/chunk-*.d.ts` (`grep "NameRegular"`). If none fits, draw a 20 px glyph; never mix in another family. `lucide-react` is still a dependency because unconverted pages import it; remove it when the last import is gone.
+
+### A.2 Tokens and classes to use
+
+- Colours: only theme utilities (`bg-surface`, `bg-raised`, `bg-subtle`, `bg-hover`, `text-ink`, `text-muted`, `border-line`, `bg-accent-soft`, `bg-off`, `bg-primary text-primary-ink`, `bg-data-1..4`, status `*-soft`). Never a hex literal: dark mode only works through the variables. Replace the leftover hex values listed in section 6.2.
+- Type utilities: `text-h1 text-h2 text-card text-metric text-body text-secondary text-caption` (size and line height together), weights 400/500/600. Code data: `<code>` or `font-code` (Cascadia Mono). Tabular numbers: `tnum`.
+- Radius: card 16 (`Card`), controls 10, small 8, dialog 20. Spacing 4 px scale via normal Tailwind steps (`gap-4`, `p-4`).
+- `Badge` is now a 24 px pill (caption size); `Button` has `destructive` and sm/md/lg heights 32/40/48.
+
+### A.3 Scroll model: what each page must do
+
+`PAGE_LAYOUT` in `src/pages/nav.ts` maps every page to `"fit"` (legacy: body fills the viewport, cards scroll inside) or `"flow"` (content height; `main` is the only scroller). Only `settings` is `flow` today. When a page is converted: flip its entry to `"flow"`, remove `flex-1`, `h-full`, `max-h-*`, `overflow-y-auto` from its cards, and put staged changes in `<ActionBar>` as the last child of the page. Dashboard stays `"fit"`. The content column is `max-w-[1200px]`, padding 24/20.
+
+### A.4 Known leftovers outside the shell files
+
+- `ScanHero` is light-only (hard-coded tint, laptop image uses `mix-blend-multiply`): in dark the hero title is unreadable and the button blends in. Needs token colours and a transparent laptop PNG (DEP 10).
+- Hard-coded hex colours remain in CrashPage, ScanPage, StoragePage, HistoryPage (see 6.2).
+- Pages still import Lucide and `ICON_STROKE`.
+- `get_settings` / `set_settings` are called through a local wrapper in `src/lib/settings.ts` (not `api.ts`); move it there when the types land. The backend stores only `sidebarCollapsed` (bool); the Automatic/Expanded/Collapsed tri-state is kept in `localStorage` and "Collapsed" maps to `true`.
+- Settings rows deferred: tray icon (DEP), Admin helper status chip (no command), Licences and project link are plain text (no external-open command, DEP 2).
