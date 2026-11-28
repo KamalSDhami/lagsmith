@@ -19,7 +19,7 @@ A row is ticked only when an automated test proves it: `e2e/real` checks the rea
 | A9 | Anti-cheat installed, service state | Crash Detective, Gaming | real: Riot Vanguard | done |
 | A10 | Free RAM, top memory apps (anti-cheat never opened) | Memory | real: no vgc/VALORANT rows | done |
 | A11 | Page file | Hardware | real | done |
-| A12 | Power plan and mode, battery health | Hardware, Gaming, Dashboard | live: best_efficiency on AC, battery 25%; mock | done |
+| A12 | Power plan and mode, battery health, `hasBattery` | Hardware, Gaming, Dashboard | live 28 Nov: best_efficiency on AC, 12.09 of 48.84 Wh (25%), design read from the battery driver because WMI fails here; mock | done |
 | A13 | Memory Integrity, Hyper-V, WSL | Gaming | real | done |
 | A14 | Startup apps, anti-cheat entries locked | Startup Manager | real: RiotClient has no toggle | done |
 | A15 | What fills C: (programs, WSL disk, app data, user folders, caches) | Storage Cleaner | real: VALORANT 35.2 GB, Ubuntu vhdx | done |
@@ -48,6 +48,7 @@ Dashboard, Scan PC, Crash Detective, Hardware, Storage Cleaner, Startup Manager,
 | C7 | Restore point before changes | owner's UAC run 27 Nov: restore point created | done |
 | C8 | Move WSL to another drive (`wsl --manage --move`, WSL 2.3+, undo moves back) | unit tests (distro, path, drive, space, version, game folders); mock UI flow, undo via History confirm, unknown-drive, low-space and game-folder refusals, old-WSL message (same-drive refusal is unit-tested only). Never run on this PC. | built, not run on a real distro |
 | C9 | Remove a leftover Store app (`PackageManager`, current user, not reversible, "Reinstall from Microsoft Store") | unit tests (deny list, allow-list re-check, framework/system refusal, fake remover); mock UI flow, History has no undo. Never run on this PC. | built, not run on a real package |
+| C10 | Clean memory (trim user apps' working sets; optional auto-clean above a set %, no timer; standby purge via the helper) | unit tests (process filter, watcher crossing and cooldown, threshold bounds); mock. Never run for real, and `purge-standby` never run on this PC. | built, not run for real |
 
 All actions are refused during a protected game session (the game itself or `vgc`). The Vanguard tray icon doesn't block them.
 

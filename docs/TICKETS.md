@@ -58,7 +58,13 @@ Pending, active, and completed work. Update status when something moves.
 | V2-3 | Remove a leftover Store app (`C9`): `PackageManager`, current user, not reversible, "Reinstall from Microsoft Store" link | P2 | doing | Built; unit + mock UI tests pass. Never run on a real package. Game Bar removed from the allow-list (Xbox rule) |
 | V2-4 | Name exact faulting driver from crash dumps (`dbgeng.dll`, `A8`) | P2 | done | Owner UAC run 27 Nov: `vgk.sys` (unloaded) in `112526-14828-01.dmp` |
 | V2-5 | Last SFC result from compressed CBS `.cab` archives (`A18`) | P2 | done | `System32\expand.exe` fallback + unit + real tests pass |
-| V2-6 | Memory: "close before gaming" list, one-time trim (no timed RAM cleaning) | P2 | todo | |
+| V2-6 | Memory cleaner: manual `clean_memory` (EmptyWorkingSet, user apps only), optional auto-clean above a user-set % (off by default, no timer) | P2 | doing | Backend and mocks done, 28 Nov: name filter before `OpenProcess`, game gate, watcher (30 s check, one run per crossing, 10 min cooldown), History entry. UI wiring and a real run (owner) still to do |
+| V2-6b | Standby list purge (`purge-standby` helper task, UAC per run, never automatic) | P2 | doing | Built; `NtSetSystemInformation` class 80 / command 4 and the privilege step are unverified on a real run |
+| V2-11 | Settings store (`get_settings`/`set_settings`): theme, sidebar, start with Windows (HKCU Run), auto-clean | P1 | done | Unit tests for parse, bounds, Run value. Registry write not run on a real install |
+| V2-12 | Findings store for Resolved markers (`record_scan`, `get_findings_history`) | P1 | done | State machine unit-tested; UI must send `open` and `clear` per scan |
+| V2-13 | `hasBattery` and battery design capacity via the battery driver | P1 | done | Real PC 28 Nov: 48.84 Wh design, 12.09 Wh full (25%). WMI `BatteryStaticData` fails here |
+| V2-14 | Save "Analyze dumps" results (`get_dump_analysis`) | P1 | done | Written by the app, never by the elevated helper |
+| V2-15 | `open_external` with a host allow-list | P1 | done | Unit-tested; the `ShellExecuteW` call itself not run |
 | V2-7 | Dark mode palette (Apple-style neutral greys) | P2 | todo | |
 | V2-8 | Desktop PC hero image, chosen by device type | P2 | todo | Remove brand logos before shipping |
 | V2-9 | Closing the app during SFC/DISM leaves the elevated helper and `sfc.exe` running with no UI. Warn before close while an admin task runs; on reopen, show "a repair is still running" and pick up the result from the CBS log | P1 | done | Found 27 Nov: owner closed app at SFC 84%; SFC kept going (good, killing it mid-repair is worse). Built: close prompt (Rust blocks close, UI asks), System Repair banner from process-name snapshot, busy buttons name the task, SFC/DISM refused if sfc/dism/helper already running. Not verified on a real window close or real background SFC |
